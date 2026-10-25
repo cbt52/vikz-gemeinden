@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VIKZ-Gemeinden in deiner Nähe</title>
+<meta name="description" content="291 VIKZ-Gemeinden und Bildungsvereine – die nächsten nach Entfernung finden, mit Karte und Route.">
+<meta name="theme-color" content="#0b3d2c">
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --green:#0b3d2c; --green-2:#14603f; --accent:#f0c04a; --ink:#16211c;
+  --muted:#4c5b53; --soft:#6d7b73; --line:#e1e7e2; --bg:#f5f6f3; --card:#fff;
+  --r:16px; --shadow:0 1px 2px rgba(11,61,44,.05),0 10px 28px rgba(11,61,44,.07);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--green-2)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 18px}
+svg{display:block}
+
+/* ---------- Kopf ---------- */
+header{background:linear-gradient(158deg,#0a3728 0%,#12503a 58%,#17694a 100%);color:#fff;
+ position:relative;overflow:hidden}
+header::after{content:"";position:absolute;right:-120px;bottom:-180px;width:420px;height:420px;
+ border-radius:50%;background:radial-gradient(circle,rgba(240,192,74,.22),transparent 66%);pointer-events:none}
+.hwrap{position:relative;z-index:2;display:grid;gap:20px;padding:24px 18px 26px}
+@media(min-width:940px){.hwrap{padding-left:18px;padding-right:18px}}
+@media(min-width:940px){.hwrap{grid-template-columns:1fr 440px;align-items:center;gap:40px;padding-top:36px;padding-bottom:36px}}
+.brand{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:700;letter-spacing:.16em;
+ text-transform:uppercase;color:#cfe3d7}
+.brand svg{width:26px;height:26px}
+h1{font-size:clamp(25px,4.4vw,38px);line-height:1.1;margin:10px 0 10px;font-weight:750;letter-spacing:-.025em;
+ max-width:20ch}
+.sub{margin:0;color:#d8e9de;font-size:14.5px;max-width:46ch}
+.sub b{color:#fff;font-weight:650}
+
+.finder{position:relative}
+.geo{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;min-height:54px;
+ background:var(--accent);color:#20180a;border:0;border-radius:14px;padding:14px 18px;
+ font-size:16.5px;font-weight:700;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.20);
+ transition:transform .08s ease,box-shadow .2s ease;font-family:inherit}
+.geo:hover{box-shadow:0 10px 26px rgba(0,0,0,.26)}
+.geo:active{transform:translateY(1px)}
+.geo.busy{opacity:.75;pointer-events:none}
+.geo svg{width:19px;height:19px}
+.or{display:flex;align-items:center;gap:12px;color:#c2d9ca;font-size:11.5px;margin:15px 0 10px;
+ text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+.or::before,.or::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.2)}
+.addrbox{display:flex;align-items:center;gap:0;background:#fff;border-radius:13px;
+ box-shadow:0 6px 18px rgba(0,0,0,.16);border:2px solid transparent}
+.addrbox:focus-within{border-color:var(--accent)}
+.addrbox .ic{padding:0 0 0 13px;color:var(--soft)}
+.addrbox .ic svg{width:18px;height:18px}
+#addr{flex:1;min-width:0;border:0;outline:none;padding:14px 8px 14px 10px;font-size:15.5px;
+ color:var(--ink);background:transparent;font-family:inherit}
+#addr::placeholder{color:#8a968f}
+#clr{display:none;border:0;background:none;color:var(--soft);font-size:18px;line-height:1;
+ padding:8px 6px;cursor:pointer}
+.addrbox.has #clr{display:block}
+#go{border:0;background:var(--green-2);color:#fff;padding:0 16px;align-self:stretch;
+ font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:0 11px 11px 0}
+#go:hover{background:#0f4d33}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;color:var(--ink);
+ border-radius:12px;box-shadow:0 18px 44px rgba(0,0,0,.26);overflow:hidden;z-index:60}
+.sugg div{padding:11px 14px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--line)}
+.sugg div:last-child{border:0}
+.sugg div:hover,.sugg div.sel{background:#eff6f1}
+.sugg strong{display:block;font-weight:650}
+.sugg small{display:block;color:#55645c;font-size:12.5px}
+.msg{margin:11px 0 0;font-size:13.5px;line-height:1.45;color:#e6f1ea;min-height:19px}
+.msg.err{background:rgba(255,255,255,.12);border-left:3px solid #ffb4a2;border-radius:8px;
+ padding:10px 12px;color:#ffe7e0}
+
+/* ---------- Inhalt ---------- */
+main{padding:24px 0 10px}
+.layout{display:grid;gap:22px}
+@media(min-width:940px){
+  .layout{grid-template-columns:1fr 430px;column-gap:30px;align-items:start}
+  #nearSec{grid-column:1;grid-row:1}
+  .mapwrap{grid-column:2;grid-row:1/span 2;position:sticky;top:18px}
+  #listSec{grid-column:1;grid-row:2}
+}
+h2{font-size:16.5px;margin:0;font-weight:700;letter-spacing:-.01em}
+.sechead{display:flex;align-items:baseline;gap:10px;margin-bottom:11px;flex-wrap:wrap}
+.count{color:var(--soft);font-size:12.5px}
+.ghost{margin-left:auto;background:#fff;border:1px solid var(--line);color:var(--muted);
+ border-radius:999px;padding:7px 13px;font-size:12.5px;cursor:pointer;font-family:inherit}
+.ghost:hover{border-color:#c3d2c9;color:var(--ink)}
+
+.cards{display:grid;gap:10px}
+@media(min-width:620px) and (max-width:939px){.cards{grid-template-columns:1fr 1fr}}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:14px 15px;
+ display:flex;gap:13px;align-items:flex-start;border:1px solid rgba(11,61,44,.06)}
+.card.top{border-color:rgba(240,192,74,.7);box-shadow:0 1px 2px rgba(11,61,44,.05),0 12px 30px rgba(240,192,74,.22)}
+.rank{flex:0 0 28px;height:28px;border-radius:9px;background:#eef5f0;color:var(--green-2);
+ font-weight:750;font-size:13.5px;display:flex;align-items:center;justify-content:center}
+.card.top .rank{background:var(--accent);color:#2a1f04}
+.cbody{flex:1;min-width:0}
+.cname{font-weight:650;font-size:14.8px;line-height:1.3;margin:0 0 3px}
+.caddr{color:var(--muted);font-size:13.2px;margin:0}
+.cact{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+.cact a{display:inline-flex;align-items:center;min-height:34px;font-size:12.8px;text-decoration:none;
+ color:var(--green-2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;
+ background:#fbfcfb;white-space:nowrap;font-weight:600}
+.cact a:hover{border-color:#b9d2c5;background:#f1f8f4}
+.dist{flex:0 0 auto;text-align:right;padding-left:2px}
+.dist b{display:block;font-size:17.5px;font-weight:750;color:var(--green);letter-spacing:-.02em;white-space:nowrap}
+.dist span{font-size:10.5px;color:#5a6a61;text-transform:uppercase;letter-spacing:.09em;font-weight:600}
+
+.mapwrap{margin:0}
+.maplabel{display:flex;align-items:center;justify-content:space-between;margin:0 2px 8px;font-size:12.5px;
+ color:var(--soft);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+#map{height:min(58vh,420px);border-radius:var(--r);box-shadow:var(--shadow);z-index:1}
+@media(min-width:940px){#map{height:min(72vh,620px)}}
+.leaflet-container{font:inherit}
+
+.searchrow{display:flex;gap:8px;margin-bottom:11px}
+#q{flex:1;min-width:0;padding:12px 15px;border-radius:12px;border:1px solid var(--line);background:#fff;
+ font-size:15px;outline:none;font-family:inherit;box-shadow:0 1px 2px rgba(11,61,44,.04)}
+#q:focus{border-color:#b9d2c5;box-shadow:0 0 0 3px rgba(20,96,63,.09)}
+.list{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.item{display:flex;gap:12px;align-items:flex-start;padding:12px 15px;border-bottom:1px solid var(--line);cursor:pointer}
+.item:last-child{border-bottom:0}
+.item:hover{background:#f7faf8}
+.item .who{flex:1;min-width:0}
+.nm{font-weight:600;font-size:14.5px;display:block;line-height:1.3}
+.ad{color:var(--muted);font-size:13px}
+.dm{flex:0 0 auto;font-size:13px;font-weight:750;color:var(--green-2);background:#eef5f0;
+ border-radius:999px;padding:4px 10px;white-space:nowrap}
+.empty{padding:22px 16px;color:var(--soft);font-size:14px}
+
+footer{border-top:1px solid var(--line);margin-top:20px;padding:20px 0 40px;color:var(--soft);font-size:12.3px}
+footer p{margin:4px 0;max-width:78ch}
+.pin{width:13px;height:13px;border-radius:50%;background:var(--green-2);border:2.5px solid #fff;
+ box-shadow:0 0 0 1px rgba(11,61,44,.4)}
+.pin.near{background:var(--accent);width:17px;height:17px;box-shadow:0 0 0 1px rgba(160,120,20,.55)}
+.me{width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;
+ box-shadow:0 0 0 2px rgba(26,115,232,.35)}
+</style>
+</head>
+<body>
+<header>
+ <div class="wrap hwrap">
+  <div>
+   <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="11" fill="#f0c04a"/>
+      <path d="M12 5.6c.9 1.1 1.4 2.1 1.4 3.1 0 .7-.3 1.3-.8 1.9h3.1c.6 0 1.1.5 1.1 1.1v.6H7.2v-.6c0-.6.5-1.1 1.1-1.1h3.1c-.5-.6-.8-1.2-.8-1.9 0-1 .5-2 1.4-3.1Z" fill="#0b3d2c"/>
+      <path d="M6.3 14.2h11.4M7.4 16.1h9.2M8.5 18h7" stroke="#0b3d2c" stroke-width="1.35" stroke-linecap="round"/>
+    </svg>
+    VIKZ · Gemeinden
+   </div>
+   <h1>Welche Gemeinde ist in deiner Nähe?</h1>
+   <p class="sub"><b>291 Standorte</b> aus den Landesverbänden. Die Entfernung wird in deinem Browser berechnet – dein Standort verlässt das Gerät nicht.</p>
+  </div>
+
+  <div class="finder">
+   <button id="geo" class="geo">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z" fill="currentColor" opacity=".9"/><circle cx="12" cy="10" r="2.6" fill="#f0c04a"/></svg>
+    <span id="geoTxt">Meinen Standort verwenden</span>
+   </button>
+   <div class="or">oder Adresse eingeben</div>
+   <div class="addrbox" id="addrbox">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="10" r="2.4" stroke="currentColor" stroke-width="1.7"/></svg></span>
+    <input id="addr" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
+      placeholder="Straße und Hausnummer, z. B. Breukerstraße 79, Gladbeck" aria-label="Adresse mit Straße und Hausnummer">
+    <button id="clr" type="button" aria-label="Eingabe löschen">×</button>
+    <button id="go" type="button">Suchen</button>
+    <div id="sugg" class="sugg" hidden></div>
+   </div>
+   <p id="status" class="msg" role="status"></p>
+  </div>
+ </div>
+</header>
+
+<main class="wrap">
+ <div class="layout">
+  <section id="nearSec" class="section" hidden>
+   <div class="sechead">
+    <h2 id="nearTitle">Die nächsten Gemeinden</h2>
+    <button id="clear" class="ghost">Zurücksetzen</button>
+   </div>
+   <div id="nearList" class="cards"></div>
+  </section>
+
+  <section class="mapwrap">
+   <div class="maplabel"><span>Karte</span><span id="mapNote">ganze Bundesrepublik</span></div>
+   <div id="map"></div>
+  </section>
+
+  <section id="listSec" class="section">
+   <div class="sechead">
+    <h2 id="listTitle">Alle Gemeinden</h2>
+    <span class="count" id="listCount"></span>
+   </div>
+   <div class="searchrow"><input id="q" type="search" placeholder="Suchen: Name, Ort, Straße oder PLZ"></div>
+   <div id="list" class="list"></div>
+  </section>
+ </div>
+</main>
+
+<footer><div class="wrap">
+ <p><strong>Quelle:</strong> Gemeindelisten der VIKZ-Landesverbände (Stand 24.10.2026), geokodiert über OpenStreetMap/Nominatim. Kartenkacheln © OpenStreetMap-Mitwirkende (ODbL), Adresssuche über Photon.</p>
+ <p>Eigenständige Übersicht, keine offizielle Veröffentlichung des VIKZ. Standortabfrage nur nach deiner Zustimmung: Berechnung im Browser, keine Speicherung, kein Tracking.</p>
+</div></footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const G = [{"n":"Türkischer Integrations- und Bildungsverein Aachen e.V.","s":"Robrt-Koch-Str. 28","p":"52066","c":"Aachen","t":"0241 962103","e":"talebe.ac@gmail.com","u":"","a":50.776351,"o":6.083862},{"n":"Jugend- und Kulturverein in Achim e.V.","s":"Ottostr. 1","p":"28832","c":"Achim","t":"‭0471 74124‬","e":"achim.sbhh@gmail.com","u":"","a":53.018444,"o":9.041884},{"n":"Bildungs- und Integrionszentrum in Ahaus e.V.","s":"Ridderstr. 7","p":"48683","c":"Ahaus","t":"0256 26070092","e":"bizahaus@gmail.com","u":"","a":52.076855,"o":7.018087},{"n":"Verein zur Förderung der Integration und Bildung Ahlen e.V.","s":"Im Herbrand 1a","p":"59229","c":"Ahlen","t":"0238 264703","e":"vfib-ahlen@live.de","u":"","a":51.762177,"o":7.900582},{"n":"Türkischer Integrations- und Bildungsverein Alsdorf e.V.","s":"Übacher Weg 54","p":"52477","c":"Alsdorf","t":"02404 3006","e":"als.talebe@gmail.com","u":"","a":50.877371,"o":6.158838},{"n":"Kultur- und Bildungsverein e.V. Altensteig","s":"Obere Talstr. 29-31","p":"72213","c":"Altensteig","t":"0745 39580339","e":"altensteig.skrt@gmail.com","u":"","a":48.588209,"o":8.592304},{"n":"Bildung und Kultur in Amberg e.V.","s":"Hafnergäßchen 1 b","p":"92224","c":"Amberg","t":"09621 23920","e":"buk-amberg@outlook.de","u":"","a":49.444845,"o":11.854314},{"n":"Bildungs- und Kulturverein Aschaffenburg e.V.","s":"Hanauer Str. 22","p":"63739","c":"Aschaffenburg","t":"06021 219006","e":"bkv-aschaffenburg@hotmail.de","u":"","a":49.979503,"o":9.135663},{"n":"Augsburger Bildungs- und Kulturverein e.V.","s":"Eschenhofstr. 56-58","p":"86154","c":"Augsburg","t":"0821 420000","e":"info@abkv.de","u":"","a":48.396511,"o":10.880925},{"n":"Kultur und Bildung in Lechausen e.V.","s":"Linke-Brandstr. 25","p":"86167","c":"Augsburg","t":"0821 8852105","e":"kulturundbildung@live.de","u":"","a":48.386539,"o":10.912396},{"n":"Bildungs- und Integrationsverein Bad Saulgau e.V","s":"Moosheimer Str. 32","p":"88348","c":"Bad Saulgau","t":"0758 16010","e":"badsaulgaufatihcamiibiv@gmail.com","u":"","a":48.022246,"o":9.495936},{"n":"Kultur Bildungs und Integrationsverein in Bad Wurzach e.V.","s":"Biberacher Str. 15","p":"88410","c":"Bad Wurzach","t":"0756 491641","e":"kbiv-wurzach@t-online.de","u":"","a":47.910385,"o":9.89272},{"n":"Türkische Intergrations- und Bildungsverein in Setterich e.V.","s":"Wolfsgasse 43","p":"52499","c":"Baesweiler","t":"02401 608688","e":"talebe.set@gmail.com","u":"","a":50.924556,"o":6.199475},{"n":"Integration und Bildung in Bamberg e.V.","s":"Jäckstr. 16","p":"96052","c":"Bamberg","t":"0951 203246","e":"bambergg.n@gmail.com","u":"","a":49.90253,"o":10.885362},{"n":"Integrations- Kultur und Bildungsverein Bayreuth e.V.","s":"Friedrich-Puchta-Str. 8","p":"95444","c":"Bayreuth","t":"0921 24649","e":"ikbbev@hotmail.de","u":"","a":49.949209,"o":11.573611},{"n":"Bildungs- und Kulturverein Bendorf e.V","s":"Engersport 13","p":"56170","c":"Bendorf","t":"","e":"bkv-bendorf@hotmail.de","u":"","a":50.4219,"o":7.573309},{"n":"Integration und Bildungsverein Bergheim e.V.","s":"Südweststr. 11","p":"50126","c":"Bergheim","t":"","e":"","u":"https://www.vikz.de/de/gemeinden/anfangsbuchstabe_ort/b/ort/Bergheim.html","a":50.952974,"o":6.642984},{"n":"Bergischer Förderverein zur Bildung und Integration e.V.","s":"Refrather Weg 24","p":"51465","c":"Bergisch Gladbach","t":"02202 56782","e":"kbthb.gladbach@gmail.com","u":"","a":50.982637,"o":7.120986},{"n":"Bildungs- und Kulturzentrum in Bergkamen e.V.","s":"Präsidentenstraße 81","p":"59192","c":"Bergkamen","t":"0230 784913","e":"bergkamen08@gmail.com","u":"","a":51.62294,"o":7.640614},{"n":"Friedenauer Kulturverein zur Integration und Bildung e.V.","s":"Hedwigstr. 15","p":"12159","c":"Berlin","t":"030 8593166","e":"ibvsteglitz@gmail.com","u":"","a":52.471617,"o":13.33684},{"n":"Kulturverein zur Integration und Bildung am Hermannplatz e.V.","s":"Sonnenallee 18 A","p":"12047","c":"Berlin","t":"030 13895634","e":"ibvhamidiye@gmail.com","u":"","a":52.486383,"o":13.429626},{"n":"Kulturverein zur Integration und Bildung in Reinickendorf e.V.","s":"Quickborner Str. 96","p":"13439","c":"Berlin","t":"030 40710472","e":"ibvreinickendorf@gmail.com","u":"","a":52.606496,"o":13.364306},{"n":"Kulturverein zur Integration und Bildung in Wedding e.V.","s":"Müllerstr. 119","p":"13349","c":"Berlin","t":"030 92351200","e":"ibzsuleymaniye@gmail.com","u":"","a":52.55453,"o":13.344314},{"n":"Spandauer Kulturverein Zur Integration und Bildung e.V.","s":"Seeburger Str. 90","p":"13581","c":"Berlin","t":"030 35105577","e":"ibvspandau@gmail.com","u":"","a":52.528454,"o":13.193937},{"n":"Verein zur Integration und Bildung e.V.","s":"Alt-Moabit 112","p":"10559","c":"Berlin","t":"030 3938494","e":"ibvmoabit@gmail.com","u":"","a":52.524039,"o":13.35198},{"n":"Verein zur Integration und Bildung in Neukölln e.V.","s":"Hermannstr. 177","p":"12051","c":"Berlin","t":"030 6216853","e":"ibvneukoelln@gmail.com","u":"","a":52.471599,"o":13.429324},{"n":"Integration und Bildung in Biberach Riss e.V.","s":"Ehinger Str. 6","p":"88400","c":"Biberach an der Riß","t":"07351 72711","e":"integrationbildung@hotmail.de","u":"","a":48.101482,"o":9.787642},{"n":"Bildungs-und Kulturverein Bielefeld e.V.","s":"Herforder Str. 107","p":"33602","c":"Bielefeld","t":"0521 174666","e":"bkvbielefeld@gmail.com","u":"","a":52.033187,"o":8.54166},{"n":"Verein zur Förderung der Integration und Bildung in Brackwede e.V.","s":"Gaswerkstr. 21","p":"33647","c":"Bielefeld","t":"0521 4176683","e":"brackwedevfib@gmail.com","u":"","a":51.992619,"o":8.502885},{"n":"Integrations- und Bildungsstätte Bocholt e.V.","s":"Don-Bosco-Str. 18","p":"46397","c":"Bocholt","t":"02871 180940","e":"ibb.bocholt@duisburgbm.de","u":"","a":51.837401,"o":6.626664},{"n":"Bildungs- und Kulturverein Bochum-Stahlhausen e.V.","s":"Essener Str. 23","p":"44793","c":"Bochum","t":"0234 43887633","e":"bkbverein@hotmail.com","u":"","a":51.47639,"o":7.191902},{"n":"Bildungs- und Kulturzentrum Bonn e.V.","s":"Kölnstr. 361","p":"53117","c":"Bonn","t":"0228 6896070","e":"kbthbonn@gmail.com","u":"","a":50.748581,"o":7.080037},{"n":"Bildung und Kulturzentrum e.V.","s":"Beckstr. 2","p":"46238","c":"Bottrop","t":"0204 164957","e":"bottrop.bkz@gmail.com","u":"","a":51.522739,"o":6.952088},{"n":"Bildungs- und Integrationsverein e.V.","s":"Welheimer Str. 177","p":"46238","c":"Bottrop","t":"02041 378570","e":"welheim.biv@gmail.com","u":"","a":51.532513,"o":6.986872},{"n":"Kulturverein zur Förderung und Integration von Jugendlichen Braunschweig e.V.","s":"Leopold Str. 29","p":"38100","c":"Braunschweig","t":"0531 61285127","e":"braunschweig.bek@gmail.com","u":"","a":52.260036,"o":10.522453},{"n":"Bildungs- und Integrations- Kulturzentrum Bremen e.V.","s":"Waller Heerstr. 13 - 15","p":"28217","c":"Bremen","t":"‭0421 3967524‬","e":"bremenwalle.sb@gmail.com","u":"","a":53.099123,"o":8.787948},{"n":"Bremer Bildungs- und Kulturverein e.V.","s":"Am Schwarzen Meer 58-62","p":"28205","c":"Bremen","t":"0421 448955","e":"bremensielwall.sb@gmail.com","u":"","a":53.071817,"o":8.836546},{"n":"Integration und Bildung in Bremen e. V.","s":"Soltend 11","p":"28327","c":"Bremen","t":"‭0421 421117‬","e":"bremenosterholz.sb@gmail.com","u":"","a":53.060039,"o":8.929927},{"n":"Bildungs- und Integrations- Kulturzentrum B.haven e.V.","s":"Lübecker Str. 5 - 7","p":"27570","c":"Bremerhaven","t":"‭0471 74124‬","e":"bremerhaven.sb@gmail.com","u":"","a":53.524784,"o":8.600333},{"n":"Bildungs- und Kulturverein Brühl e.V.","s":"Hauptstr. 10","p":"50321","c":"Brühl","t":"02232 148448","e":"kbthbruehl@gmail.com","u":"","a":50.843933,"o":6.898045},{"n":"Verein zur Förderung der Integration und Bildung in Buchen e.V.","s":"Zum Mühlengrund 6","p":"74722","c":"Buchen","t":"0628196118","e":"vfibbuchen@gmail.com","u":"","a":49.523519,"o":9.319534},{"n":"Kultur- und Bildungsverein Böhmenkirchen e.V.","s":"Hauptstr. 82","p":"89558","c":"Böhmenkirch","t":"0176 23400933","e":"boehmenkirch.skrt@gmail.com","u":"","a":48.685246,"o":9.930721},{"n":"Bönener Bildungs- und Kulturverein e.V.","s":"Bahnhoftsr. 202","p":"59199","c":"Bönen","t":"0238 38991","e":"","u":"","a":51.598077,"o":7.758854},{"n":"Coburger Kultur und Bildungs e.V.","s":"Hahnweg 152e","p":"96450","c":"Coburg","t":"09561 95449","e":"ckbv-coburg@web.de","u":"","a":50.271332,"o":10.981714},{"n":"Kultur und Bildungsverein Darmstadt e.V.","s":"Mollerstr. 44","p":"64289","c":"Darmstadt","t":"069 818687","e":"kbv.darmstadt@gmail.com","u":"","a":49.883827,"o":8.653546},{"n":"Verein zur Förderung der Integration und Bildung in Datteln e.V.","s":"Zechenstraße 33","p":"45711","c":"Datteln","t":"02363 359608","e":"datteln09@gmail.com","u":"","a":51.63467,"o":7.327063},{"n":"Deggendorfer Integrations und Bildungsverein e.V.","s":"Veilchengasse 14","p":"94469","c":"Deggendorf","t":"0991 32522","e":"tunacami@hotmail.com","u":"","a":48.832622,"o":12.960037},{"n":"Delmenhorster Integrations- und Bildungsverein e. V.","s":"Bremer Str. 95","p":"27749","c":"Delmenhorst","t":"‭04221 17531‬","e":"delmenhorst.sb@gmail.com","u":"","a":53.052801,"o":8.645413},{"n":"Bildung und Integration Dinslaken e.V.","s":"Hünxer Str. 403","p":"46537","c":"Dinslaken","t":"0206 4398223","e":"dinslaken@duisburgbm.de","u":"","a":51.583413,"o":6.761094},{"n":"Kultur- und Bildungszentrum e.V. Donzdorf","s":"Öschstr. 39","p":"73072","c":"Donzdorf","t":"0716 224284","e":"donzdorf@lvikz-bw.de","u":"","a":48.681706,"o":9.795227},{"n":"Bildungs- und Kulturverein in Dormagen e.V.","s":"Höhenberg 11","p":"41539","c":"Dormagen","t":"02133 40212","e":"kbthdormagen@gmail.com","u":"","a":51.088767,"o":6.844637},{"n":"Bildungs- und Kulturzentrum Dorsten e.V.","s":"Haltener Str. 59 - 61","p":"46284","c":"Dorsten","t":"0236 2700709","e":"bkzdorsten@gmail.com","u":"","a":51.660407,"o":6.964743},{"n":"Verein der Bildung und Kultur in Dortmund Huckarde e.V.","s":"Parsevalstraße 156-159","p":"44369","c":"Dortmund","t":"0231 393482","e":"huckarde03@gmail.com","u":"","a":51.535505,"o":7.409558},{"n":"Verein zur Förderung der Integration und Bildung in Dortmund Eving e.V.","s":"Bergstraße 33","p":"44339","c":"Dortmund","t":"0231 856463","e":"eving02@gmail.com","u":"","a":51.550144,"o":7.458527},{"n":"Verein zur Integration und Bildung in Dortmund e.V.","s":"Bachstraße 5-7","p":"44147","c":"Dortmund","t":"0231 822697","e":"dortmund01@gmail.com","u":"","a":51.527616,"o":7.455266},{"n":"Bildungs- und Kulturverein Wanheimerort e.V.","s":"Eulenstr. 3","p":"47055","c":"Duisburg","t":"0203 9859622","e":"bkv.wanheimerort@gmail.com","u":"","a":51.399329,"o":6.763259},{"n":"Bruckhausener Bildung, Kultur und Integration (Duisburg) e.V.","s":"Dieselstr. 24","p":"47166","c":"Duisburg","t":"0203 578011","e":"bbki.bruckhausen@gmail.com","u":"","a":51.487521,"o":6.740601},{"n":"Friemersheimer Bildungs- und Kulturverein e.V. (Duisburg)","s":"Geeststr. 12","p":"47229","c":"Duisburg","t":"0206 547740","e":"fbkv.friemersheim@gmail.com","u":"","a":51.390536,"o":6.708481},{"n":"Hamborner Bildungs- Kultur- und Integrationsverein e.V.","s":"Hauffstr. 56-58","p":"47166","c":"Duisburg","t":"0203 9948058","e":"hbz.hamborn@gmail.com","u":"","a":51.497214,"o":6.784418},{"n":"Hochfelder Integration, Kultur- und Bildungszentrum e.V. (Duisburg)","s":"Hochfeldstr. 46","p":"47053","c":"Duisburg","t":"0203 7128547","e":"hikbv.hochfeld@gmail.com","u":"","a":51.422711,"o":6.750887},{"n":"Homberger Verein zur Förderung der Bildung und Kultur (Duisburg) e.V.","s":"Moerser Str. 103","p":"47198","c":"Duisburg","t":"0206 613783","e":"hfbk.homberg@gmail.com","u":"","a":51.449323,"o":6.704135},{"n":"Kultureller Bildungsverein Walsum (Duisburg) e.V.","s":"Römerstr. 282","p":"47178","c":"Duisburg","t":"0203 474869","e":"kbvw.walsum@gmail.com","u":"","a":51.53573,"o":6.719571},{"n":"Marxloher Kultur- und Bildungshaus e.V. (Duisburg)","s":"Weselerstr. 80","p":"47169","c":"Duisburg","t":"0203 990980","e":"mkubh.marxloh@gmail.com","u":"","a":51.504599,"o":6.753451},{"n":"Verein für Bildung und Integration Meiderich e.V.","s":"Hagenauerstr. 57","p":"47137","c":"Duisburg","t":"02034 1799902","e":"vbim.meiderich@gmail.com","u":"","a":51.476269,"o":6.783637},{"n":"Integrations- und Bildungsverein in Düren e. V.","s":"Kölner Landstr. 29","p":"52351","c":"Düren","t":"02421 693640","e":"talebe.dn@gmail.com","u":"","a":50.806288,"o":6.496824},{"n":"Integrations, Kultur und Bildungsstätte Düsseldorf e.V.","s":"Ackerstr. 22","p":"40233","c":"Düsseldorf","t":"0211 364552","e":"kbthduesseldorf@gmail.com","u":"","a":51.225691,"o":6.797548},{"n":"Integrations, Kultur und Bildungsstätte Düsseldorf e.V. (Eller)","s":"Am Schabernack 42","p":"40229","c":"Düsseldorf","t":"0211 30293156","e":"kbtheller@gmail.com","u":"","a":51.199901,"o":6.821592},{"n":"Islamisches Kultur-und Bildungszentrum Ebersbach e.V.","s":"Wilhelmstr. 24","p":"73061","c":"Ebersbach","t":"071636708","e":"Ebersbach@lvikz-bw.de","u":"","a":48.716222,"o":9.52937},{"n":"Verein für Kultur- Bildung und Integration e.V. Echterdingen","s":"Karlsruherstr. 15-17","p":"70771","c":"Echterdingen","t":"0711 794 579 56","e":"Vkbi.echterdingen@gmail.com","u":"","a":48.694591,"o":9.170045},{"n":"Intergration und Bildungsverein e.V. Ehingen","s":"Schönbronner Weg 11","p":"89584","c":"Ehingen","t":"0739 12311","e":"ibv-ehingen@t-online.de","u":"","a":48.287511,"o":9.729565},{"n":"Isl. Bildungs- und Integrationszentrum Elmshorn e. V.","s":"Peter-Boldt-Str. 2","p":"25335","c":"Elmshorn","t":"‭04121 269467‬","e":"elmshorn.sb@gmail.com","u":"","a":53.755839,"o":9.65488},{"n":"Verein zur Förderung der Integration und Bildung in Emsdetten e.V.","s":"Grevener Damm 60","p":"48268","c":"Emsdetten","t":"0257 2943023","e":"emsdetten.bek@gmail.com","u":"","a":52.168894,"o":7.540762},{"n":"Bildungs- und Kulturverein in Ennepetal e.V.","s":"Voerderstr. 103","p":"58256","c":"Ennepetal","t":"033 39822544","e":"bkvennepetal@gmail.com","u":"","a":51.297875,"o":7.354276},{"n":"Verein zur Förderung der Integration und Bildung in Heidelberg e.V.","s":"Maybachstr. 6","p":"69214","c":"Eppelheim","t":"06221 6597362","e":"vfib.hd@gmail.com","u":"","a":49.410402,"o":8.626056},{"n":"Kultureller Integrations- und Bildungseinrichtung Erding e.V.","s":"Otto-Hahn-Str. 17","p":"85435","c":"Erding","t":"0812 292203","e":"kib-erding@hotmail.com","u":"","a":48.287386,"o":11.898635},{"n":"Integrations-und Bildungsverein in Eschweiler e.V.","s":"Talstrasse 152","p":"52249","c":"Eschweiler","t":"0240 35537851","e":"esch.kurs@gmail.com","u":"","a":50.812676,"o":6.268718},{"n":"Integrions- und Bildungszentrum Essen e.V.","s":"Altendorfer Str. 508","p":"45355","c":"Essen","t":"0201 675966","e":"essen.ibz@gmail.com","u":"","a":51.463109,"o":6.956356},{"n":"Esslinger Kulturzentrum zur Integration-und Bildungsförderung e.V.","s":"Mörikestr. 1","p":"73728","c":"Esslingen","t":"0711 3510891","e":"esslingen.skrt@gmail.com","u":"","a":48.737006,"o":9.310163},{"n":"Bildungs- und Kulturverein Euskirchen e.V.","s":"Bergerstr. 14","p":"53879","c":"Euskirchen","t":"0225 11460445","e":"kbtheuskirchen@gmail.com","u":"","a":50.66406,"o":6.787655},{"n":"Kultur- und Bildungsverein e.V. Flehingen","s":"Samuel-Friedrich Sauter Str. 47","p":"75038","c":"Flehingen","t":"07258 62 37","e":"kulturundbildungflehingen@outlook.de","u":"","a":49.088457,"o":8.783551},{"n":"Integration und Bildung in Flensburg e.V.","s":"Norder Str. 129","p":"24939","c":"Flensburg","t":"‭0461 27325","e":"flensburg.sb@gmail.com","u":"","a":54.794134,"o":9.431232},{"n":"Verein zur Förderung der Integration und Bildung in Frankenthal e.V.","s":"Wormser Str.130-132","p":"67227","c":"Frankenthal","t":"0623 323207","e":"schulerwohnheim.ft@gmail.com","u":"","a":49.498686,"o":8.365505},{"n":"Bildungs-und Kulturverein Frankfurt e.V.","s":"Kriegkstr. 45-49","p":"60326","c":"Frankfurt","t":"0697 392255","e":"frankfurtbkv@gmail.com","u":"","a":50.103442,"o":8.639055},{"n":"Kulturzentrum für Bildung und Integration Freiburg e.V.","s":"Habsburgerstr. 79","p":"79104","c":"Freiburg","t":"0761 3839999","e":"kbi.freiburg@gmail.com","u":"","a":48.005885,"o":7.855488},{"n":"Bildungs-und Kulturverein Frickhofen e.V.","s":"Hauptstr. 54","p":"65599","c":"Frickhofen","t":"0643 65080851","e":"bkv.frickhofen@gmail.com","u":"","a":50.503358,"o":8.021034},{"n":"Friedberger Bildungs- und Kulturverein e.V.","s":"Fauerbacher Str. 97","p":"61169","c":"Friedberg","t":"","e":"bkv.friedberg@gmail.com","u":"","a":50.330096,"o":8.768729},{"n":"Integrations- und Bildungsverein Friedberg e.V.","s":"Engelschalkstr. 12-14","p":"86316","c":"Friedberg","t":"0821 604656","e":"i.b.f@hotmail.de","u":"","a":48.349999,"o":10.993395},{"n":"Friedrichshafener Integrations und Bildungsverein e.V.","s":"Trautenmühleweg 17","p":"88046","c":"Friedrichshafen","t":"0754 1809393","e":"info@fib-verein.de","u":"","a":47.663412,"o":9.490858},{"n":"Bildungs-und Kulturverein Fulda e.V.","s":"Dr. Dietzstr. 1","p":"36037","c":"Fulda","t":"0661 241627","e":"bkvfulda@gmail.com","u":"","a":50.552259,"o":9.706811},{"n":"Kultur-und Bildungsverein Furtwangen e.V.","s":"Wilhelmstr. 20","p":"78120","c":"Furtwangen","t":"01575 2598834","e":"furtwangen.skrt@gmail.com","u":"","a":48.049777,"o":8.203756},{"n":"Integration, Kultur und Bildung e.V.","s":"Blumenstr. 8","p":"90762","c":"Fürth","t":"0911 776221","e":"ikbfuerth@gmail.com","u":"","a":49.47505,"o":10.987475},{"n":"Garmischer Integrations- und Bildungsverein e.V.","s":"Bahnhofstr. 22","p":"82467","c":"Garmisch-Partenkirchen","t":"08821 752608","e":"info@gibv.de","u":"","a":47.492319,"o":11.100239},{"n":"Kultur und Bildungsverein Geislingen e.V.","s":"Bismarckstr. 37","p":"73312","c":"Geislingen","t":"0733 144533","e":"Kulturundbildungsverein@hotmail.de","u":"","a":48.610113,"o":9.841662},{"n":"Kultur- und Bildingsverein Geislingen e.V.","s":"Römerstr. 17","p":"73312","c":"Geislingen","t":"0733 144533","e":"Kulturundbildungsverein@hotmail.de","u":"","a":48.610581,"o":9.841036},{"n":"Integration und Bildungszentrum e.V.","s":"İndustriestr. 20 - 22","p":"45899","c":"Gelsenkirchen","t":"0209 38068480","e":"ibz@hotmail.de","u":"","a":51.537695,"o":7.022763},{"n":"Schalker Integration und Bildungszentrum","s":"Kurt-Schumacher-Str. 91","p":"45881","c":"Gelsenkirchen","t":"0209 492768","e":"schalkecamii@gmail.com","u":"","a":51.522322,"o":7.088968},{"n":"Verein für Bildung und Integration e.V.","s":"Polsumer Str. 73","p":"45896","c":"Gelsenkirchen","t":"0209 638585","e":"vbi-hassel@outlook.de","u":"","a":51.592141,"o":7.0513},{"n":"Zentrum für Integration und Bildung in Gelsenkirchen e.V.","s":"Ahlmannshof 33","p":"45889","c":"Gelsenkirchen","t":"0209 82907","e":"info@zib-gelsenkirchen.de","u":"","a":51.526428,"o":7.111248},{"n":"Verein zur Förderung der Integration und Bildung in Germersheim e.V.","s":"Posthius Str.8b","p":"76726","c":"Germersheim","t":"0727 4709682","e":"ger.vfib@gmail.com","u":"","a":49.208802,"o":8.360945},{"n":"Bildungs & Integrationsverein in Giengen e.V.","s":"Steigstr. 4","p":"89537","c":"Giengen","t":"07322919520","e":"bivgswhg@gmail.com","u":"","a":48.619482,"o":10.235746},{"n":"Giessener Bildungs- und Kulturverein e.V.","s":"Schottstr. 2-4","p":"35390","c":"Giessen","t":"","e":"bkv.giessen@gmail.com","u":"https://www.vikz.de/de/gemeinden/anfangsbuchstabe_ort/g/ort/Giessen.html","a":50.591283,"o":8.677274},{"n":"Interkulturelles Bildungszentrum e.V.","s":"Breukerstr. 79 - 81","p":"45968","c":"Gladbeck","t":"0204 32951112","e":"ibg.gladbeck.ev@gmail.com","u":"","a":51.54181,"o":7.013078},{"n":"Glückstädter Integrations- und Kulturzentrum e. V.","s":"Am Wall 6","p":"25348","c":"Glückstadt","t":"‭04124 4839","e":"gluckstadt.sb@gmail.com","u":"","a":53.787247,"o":9.426772},{"n":"Verein zur Förderung der Integration und Bildung in Gotha e.V.","s":"Kindleberstr. 39","p":"99867","c":"Gotha","t":"","e":"info@vfib-gotha.de","u":"https://www.vikz.de/de/gemeinden/anfangsbuchstabe_ort/g/ort/Gotha.html","a":50.956536,"o":10.713298},{"n":"Integrations- und Bildungsverein in Grevenbroich e.V.","s":"Bahnstr. 27","p":"41515","c":"Grevenbroich","t":"0218 19650","e":"talebe.grev@gmail.com","u":"","a":51.089821,"o":6.585711},{"n":"Bildungs-und Kulturverein Groß-Gerau e.V.","s":"Klein-Gerauer Str. 1","p":"64521","c":"Groß-Gerau","t":"0615 2909689","e":"bkv.grossgerau@gmail.com","u":"","a":49.918047,"o":8.4889},{"n":"Türkisches Kultur- und Bildungszentrum Göppingen e.V.","s":"Jahnstr. 67","p":"73037","c":"Göppingen","t":"07161 979 854","e":"goeppingen@lvikz-bw.de","u":"","a":48.698624,"o":9.654428},{"n":"Kultur und Bildungsverein Günzburg e.V.","s":"Webergasse 23-27","p":"89312","c":"Günzburg","t":"0822 131506","e":"kbv-gz@hotmail.de","u":"","a":48.455526,"o":10.273601},{"n":"Verein zur Förderung der Integration und Bildung in Gütersloh e.V.","s":"Rhedaer Str. 21","p":"33330","c":"Gütersloh","t":"05241 14811","e":"vfibguetersloh@gmail.com","u":"","a":51.895256,"o":8.365752},{"n":"Bildungs- und Kulturverein Hagen e.V.","s":"Körnerstr. 77","p":"58095","c":"Hagen","t":"0233 129001","e":"info@bkv-hagen.de","u":"","a":51.362893,"o":7.464543},{"n":"Halbergmooser Bildungs- und Kulturverein e.V.","s":"Birkenweg 47","p":"85399","c":"Hallbergmoos","t":"0811 2954","e":"kubi_hallberg@t-online.de","u":"","a":48.321377,"o":11.765002},{"n":"Bildung und Integration in Barmbek e.V.","s":"Bramfelder Str. 62 - 64","p":"22305","c":"Hamburg","t":"‭040 69791479","e":"hamburgbarmbek.sb@gmail.com","u":"","a":53.585983,"o":10.050875},{"n":"Bildung und Integration in Ottensen e.V.","s":"Bahrenfelder Str. 92","p":"22765","c":"Hamburg","t":"040 392664","e":"altona.sb@gmail.com","u":"","a":53.550994,"o":9.930572},{"n":"Bildungs- und Kulturzentrum in Wilhelmsburg e.V.","s":"Mannesallee 14","p":"21107","c":"Hamburg","t":"‭040 7535359","e":"wilhelmsburg.sb@gmail.com","u":"","a":53.513936,"o":9.991869},{"n":"Bündnis für Integration und Bildung in Harburg e.V.","s":"Buxtehuder Str. 33","p":"21073","c":"Hamburg","t":"‭040 7659313‬","e":"harburg.sb@gmail.com","u":"","a":53.4665,"o":9.97182},{"n":"Jugend Bildungsverein Bergedorf e.V.","s":"Am Beckerkamp 35","p":"21031","c":"Hamburg","t":"‭040 7124686","e":"bergedorf.sb@gmail.com","u":"","a":53.498789,"o":10.210054},{"n":"Kultur, Bildung und Integration e.V.","s":"Bei der Schilleroper 1","p":"22767","c":"Hamburg","t":"‭040 4308880","e":"yenicami.sb@gmail.com","u":"","a":53.558138,"o":9.963025},{"n":"Kulturelle Bildung und Integration Billstedt e.V.","s":"Kapellenstr. 79","p":"22117","c":"Hamburg","t":"‭040 7124686‬","e":"billstedt.sb@gmail.com","u":"","a":53.533673,"o":10.124801},{"n":"Bildungs- und Kulturverein Hamm-Zentrum e.V.","s":"Wilhelmstr.117","p":"59067","c":"Hamm","t":"0238 1445477","e":"hamm-merkez@arcor.de","u":"","a":51.669426,"o":7.796416},{"n":"Bildungs- und Kulturzentrum Bockum-Hövel e.V.","s":"Stefanstr. 35","p":"59075","c":"Hamm","t":"0238 1788599","e":"bockumhovelev@gmail.com","u":"","a":51.69584,"o":7.745976},{"n":"Bildungs- und Kulturzentrum in Hamm Herringen e.V.","s":"Langestr. 385-387","p":"59077","c":"Hamm","t":"0238 1461099","e":"bukz.herringen@gmail.com","u":"","a":51.668523,"o":7.75588},{"n":"Integrations- und Bildungsverein Hamm-Heessen e.V.","s":"Rottkamp 15A","p":"59073","c":"Hamm","t":"0238 165946","e":"heessen@hotmail.de","u":"","a":51.712197,"o":7.828411},{"n":"Bildungs-und Kulturverein Hanau e.V.","s":"Lamboystr. 6","p":"63452","c":"Hanau","t":"0697 392255","e":"hanau.bkv@gmail.com","u":"","a":50.141215,"o":8.92852},{"n":"Bildungs-und Kulturverein Hannover Zentrum e.V.","s":"Gerber Str. 3","p":"30169","c":"Hannover","t":"0511 1317789","e":"hannoverfatih.bek@gmail.com","u":"","a":52.375603,"o":9.724254},{"n":"Integration und Kulturverein e.V. Mittlefeld","s":"Am Mittelfeld 117","p":"30519","c":"Hannover","t":"0511 84893310","e":"hannovermittelfeld.bek@gmail.com","u":"","a":52.464539,"o":10.049882},{"n":"Kultur Verein zur Förderung und Bildung von Jugendlichen in Hannover e. V.","s":"Alte Stöckener Str. 42","p":"30419","c":"Hannover","t":"0511 2715569","e":"hannoverstoecken.bek@gmail.com","u":"","a":52.411,"o":9.65425},{"n":"Verein zur Förderung der Integration und Bildung in Harsewinkel e.V.","s":"Tecklenburgerweg 36","p":"33428","c":"Harsewinkel","t":"0524 7 6887","e":"vfib-harsewinkel@hotmail.de","u":"","a":51.966836,"o":8.213688},{"n":"Bildungs- und Kulturverein Hattingen e.V.","s":"Auf dem Heidchen 20A","p":"45527","c":"Hattingen","t":"0232 462090","e":"bkv-hattingen-@hotmail.de","u":"","a":51.400717,"o":7.186249},{"n":"Jugend Bildungs- und Integrationszentrum Heide e. V.","s":"Hamburger Str. 18","p":"25746","c":"Heide","t":"‭0481 4211505","e":"heidecami.sb@gmail.com","u":"","a":54.195647,"o":9.102986},{"n":"Verein zur Förderung der Integration und Bildung in Herford e.V.","s":"Goltzstr. 2b","p":"32051","c":"Herford","t":"","e":"herford.bek@gmail.com","u":"","a":52.120528,"o":8.662268},{"n":"Bildung und Kulturzentrum Herne-Horsthausen eV.","s":"Scharnhorststr. 20","p":"44628","c":"Herne","t":"0232 33980868","e":"bkzherne@gmail.com","u":"","a":51.559668,"o":7.234779},{"n":"Holthausener Bildung und Kulturverein e.V.","s":"Castroper Str. 377","p":"44627","c":"Herne","t":"0232 39596965","e":"hernehbk1435@gmail.com","u":"","a":51.548879,"o":7.280454},{"n":"Kultur und Bildungsbrücke e.V.","s":"Ringstr. 55","p":"44627","c":"Herne","t":"0232 38996967","e":"hsctalebeyurdu@gmail.com","u":"","a":51.538395,"o":7.263047},{"n":"Wanne-Eickeler Bildungs- und Integrationszentrum e.V.","s":"Hermannstr. 20","p":"44649","c":"Herne","t":"0232 55911255","e":"info@we-biz.de","u":"","a":51.534818,"o":7.159378},{"n":"Kulturzentrum der deutsch-türkischen Integration und islamischen Bildung Herrenberg e.V.","s":"Daimlerstr. 22","p":"71083","c":"Herrenberg","t":"01515 413 19 80","e":"info@kdti-herrenberg.de","u":"","a":48.602434,"o":8.870624},{"n":"Verein zur Förderung der Integration und Bildung in Herten Westerholt e.V.","s":"Arenbergstraße 5","p":"45701","c":"Herten","t":"","e":"westerholt13@gmail.com","u":"","a":51.606788,"o":7.089495},{"n":"Zentrum für Bildung und Integration in Herten Scherlebeck e.V.","s":"Margenboomstraße 36","p":"45701","c":"Herten","t":"02366 43498","e":"scherlebeck12@gmail.com","u":"","a":51.616635,"o":7.148608},{"n":"Zentrum für Bildung und Integration in Herten e.V.","s":"Paschenbergstr.151","p":"45699","c":"Herten","t":"02366889653","e":"herten11@gmail.com","u":"","a":51.605668,"o":7.119238},{"n":"Integration, Kultur und Bildung e.V.","s":"Roonstr. 1","p":"95028","c":"Hof","t":"09281 160859","e":"ikbev@web.de","u":"","a":50.30986,"o":11.922583},{"n":"Verein zur Förderung der Integration und Bildung in Homburg e.V.","s":"Dürer Str. 44","p":"66424","c":"Homburg","t":"0684 178505","e":"vfib.hom@gmail.com","u":"","a":49.333142,"o":7.336617},{"n":"Bildungs-und Kulturverein Höchst e.V.","s":"Storchgasse 20","p":"65929","c":"Höchst","t":"0693 16203","e":"hoechst.bkv@gmail.com","u":"","a":50.100403,"o":8.548022},{"n":"Verein zur Förderung der Integration und Bildung in Höchst ODW e.V.","s":"Bismarck Str.24","p":"64739","c":"Höchst ODW.","t":"","e":"hoechstodenwaldvfib@gmail.com","u":"","a":49.79601,"o":8.99297},{"n":"Bildungs- und Kulturverein Höhr-Grenzhausen e.V","s":"Seiferwiese 33","p":"56203","c":"Höhr-Grenzhausen","t":"02624 4122","e":"bkv-hoehrgrenzhausen@hotmail.de","u":"","a":50.443033,"o":7.654617},{"n":"Bildungs- und Kulturverein Betzdorf e.V.","s":"Wingertshardt 1a","p":"57537","c":"Hövels","t":"02742 9133799","e":"kbthbetzdorf@gmail.com","u":"","a":50.794065,"o":7.779991},{"n":"Integrations- und Bildungsverein Hückelhoven e.V.","s":"Jacobastr. 93c","p":"41836","c":"Hückelhoven","t":"02433 912451","e":"hueckelhovendaimi@gmail.com","u":"","a":51.062631,"o":6.206686},{"n":"Bildungs-und Kulturverein Ibbenbüren e.V.","s":"Breitestr. 16","p":"49477","c":"Ibbenbüren","t":"0545 144561","e":"ibbenbueren.bek@gmail.com","u":"","a":52.278098,"o":7.71693},{"n":"Integrations- und Bildungsverein in Ingolstadt e.V.","s":"Hindenburgstr. 23","p":"85057","c":"Ingolstadt","t":"0841 493060","e":"info@ibv-in.de","u":"","a":48.774971,"o":11.428974},{"n":"Bildungs- und Kulturverein Letmathe e.V.","s":"Friedrich-Ebert-Str. 22","p":"58642","c":"Iserlohn","t":"0237 4167788","e":"bkvletmathe@gmail.com","u":"","a":51.367674,"o":7.621963},{"n":"Kulturzentrum der deutsch-türkischen Integration und islamischen Bildung Jettingen e.V.","s":"Schulstr. 3","p":"71131","c":"Jettingen","t":"01515 413 19 80","e":"jettingen.skrt@gmail.com","u":"","a":48.564896,"o":8.782386},{"n":"Verein zur Förderung der Integration und Bildung in Kaiserslautern e.V.","s":"Moltke Str.35","p":"67655","c":"Kaiserslautern","t":"0689 825571","e":"vfib.kaiserslautern@gmail.com","u":"","a":49.440419,"o":7.763946},{"n":"Bildungs- und Kulturzentrum in Bergkamen e.V.","s":"Auf Dem Spiek No:33","p":"59174","c":"Kamen","t":"049230784913","e":"bergkamen08@gmail.com","u":"","a":51.595701,"o":7.653359},{"n":"Lintforter Integrations- und Bildunsverein (Kamp-Lintfort) e.V.","s":"Ringstr, 187","p":"47475","c":"Kamp-Lintfort","t":"0284 22083","e":"lib.lintfort@gmail.com","u":"","a":51.496362,"o":6.551715},{"n":"Verein zur Förderung der Integration und Bildung in Karlsruhe e.V.","s":"Durrmersheimerstr. 194","p":"76189","c":"Karlsruhe","t":"0721845011","e":"vfib.ka@gmail.com","u":"","a":49.00687,"o":8.40342},{"n":"Bildungs- u. Kulturverein Karlstadt e.V.","s":"Johann-Schöner-Str. 59","p":"97753","c":"Karlstadt","t":"09353 3512","e":"buk.karlstadt@gmail.com","u":"","a":49.95502,"o":9.776602},{"n":"Kulturverein zur Förderung und Integration von Jugendlichen Kassel e.V.","s":"Holländische Str. 212","p":"34127","c":"Kassel","t":"0561 898586","e":"kassel34.bek@gmail.com","u":"","a":51.338277,"o":9.488264},{"n":"Kaufbeurer Integrations- und Bildungsverein e.V.","s":"Augsburger Str. 15","p":"87600","c":"Kaufbeuren","t":"0834 19660093","e":"kib@outlook.de","u":"","a":47.882673,"o":10.629608},{"n":"Integrations- und Bildungsverein in Kempten e.V.","s":"Memmingener Str. 106","p":"87439","c":"Kempten","t":"0831 2517062","e":"ibv.kempten@gmail.com","u":"","a":47.726706,"o":10.316883},{"n":"Dietrichsdorfer Bildungs- und Kulturzentrum e.V.","s":"Helenenstr. 58 - 60","p":"24149","c":"Kiel","t":"‭0431 7993630‬","e":"kielbaltik.sb@gmail.com","u":"","a":54.337669,"o":10.185015},{"n":"Jugend Bildungs- und Integrationszentrum Kiel e. V.","s":"Karlstal 26","p":"24143","c":"Kiel","t":"‭0431 734446","e":"kielselimiye.sb@gmail.com","u":"","a":54.310578,"o":10.143781},{"n":"Kultureller Bildungs-und Integrations-Verein Kirchheim unter Teck e.V.","s":"Villastr. 8","p":"73230","c":"Kirchheim-Teck","t":"07021 43218","e":"kirchheimteck.skrt@gmail.com","u":"","a":48.646095,"o":9.454616},{"n":"Verein zur Förderung der Integration und Bildung in Kirchheimbolanden e.V.","s":"Mühl Str.1","p":"67292","c":"Kirchheimbolanden","t":"0635 26788743","e":"vfib.kibo@gmail.com","u":"","a":49.659905,"o":8.017381},{"n":"Bildungs- und Kulturverein Koblenz e.V.","s":"Nauweg 6","p":"56070","c":"Koblenz","t":"0261802686","e":"bkv.koblenz.33@gmail.com","u":"","a":50.378262,"o":7.610016},{"n":"Krefelder Bildungs- und Kulturverein e.V","s":"Petersstr. 17-19,","p":"47805","c":"Krefeld","t":"0215 13271153","e":"kbkv.krefeld@gmail.com","u":"","a":51.327192,"o":6.567438},{"n":"Uerdinger Jugendverein für Bildung und Integration e.V.","s":"Niederstr. 131","p":"47829","c":"Krefeld","t":"0215 1480980","e":"jbi.uerdingen@gmail.com","u":"","a":51.359272,"o":6.648533},{"n":"Bildungs- und Kulturverein Kalk e.V.","s":"Eythstr. 72","p":"51103","c":"Köln","t":"0221 168 767 3","e":"kbthkalk@gmail.com","u":"","a":50.944252,"o":7.010091},{"n":"Ehrenfelder Bildungs- und Kulturverein e.V.","s":"Melatener Weg 20","p":"50825","c":"Köln","t":"0221 78959000","e":"kbthehrenfeld@gmail.com","u":"","a":50.952486,"o":6.901954},{"n":"Integrations - und Kulturverein Köln Nippes e.V.","s":"Neusserstr. 225-227","p":"50733","c":"Köln","t":"0221 7326051","e":"kbthnippes@gmail.com","u":"","a":50.962362,"o":6.953427},{"n":"Integrations- und Bildungsverein Köln-Vingst e.V.","s":"Ostheimerstr. 51","p":"51103","c":"Köln","t":"0221 87 67 00","e":"kbthvingst@gmail.com","u":"","a":50.933479,"o":7.020017},{"n":"Integrations- und Bildungsverein Porz e.V.","s":"Bergerstrasse 199-201","p":"51145","c":"Köln","t":"","e":"porzkbth@gmail.com","u":"","a":50.890676,"o":7.063329},{"n":"Integrations-und Bildungsverein in Chorweiler e.V.","s":"Elbeallee 27","p":"50765","c":"Köln","t":"0221 70004161","e":"kbthchorweiler@gmail.com","u":"","a":51.027436,"o":6.887629},{"n":"Zentrum für Bildung und Integration in Mülheim e.V.","s":"Ackerstr. 146","p":"51065","c":"Köln","t":"0221 6808800","e":"kbthmuelheim@gmail.com","u":"","a":50.963588,"o":7.019197},{"n":"Integrations- und Bildungsverein in Kösching e.V.","s":"Untere Markt Str. 34","p":"85092","c":"Kösching","t":"08456 9706037","e":"ibv.koesching@gmail.com","u":"","a":48.810966,"o":11.506739},{"n":"Landauer Integrations und Bildungs Kulturverein e.V.","s":"Straubingerstr. 24","p":"94405","c":"Landau a.d. Isar","t":"09951 604726","e":"ibv.landau@gmail.com","u":"","a":48.678657,"o":12.688955},{"n":"Kultur und Bildungsverein Laupheim e.V.","s":"Berblingerstr. 11","p":"88471","c":"Laupheim","t":"0739 217363","e":"kubi.laupheim@gmail.com","u":"","a":48.219878,"o":9.8776},{"n":"Bildungs- und Kulturverein Leverkusen e.V.","s":"Im Hederichfeld 83a","p":"51379","c":"Leverkusen","t":"","e":"kbthleverkusen@gmail.com","u":"","a":51.032474,"o":6.988119},{"n":"Bildungs- und Kulturverein Limburg e.V.","s":"Westerwaldstr. 84a","p":"65549","c":"Limburg","t":"0643 152823","e":"bkv.limburg@gmail.com","u":"","a":50.396075,"o":8.061126},{"n":"Verein zur Förderung der Integration und Bildung in Ludwigshafen e.V.","s":"Landeck Str.1","p":"67065","c":"Ludwigshafen","t":"0618 113759","e":"vfibludwigshafen@gmail.com","u":"","a":49.456579,"o":8.429012},{"n":"Verein zur Förderung der Integration und Bildung in Löhne e.V.","s":"Bergkirchenerstr. 57","p":"32584","c":"Löhne","t":"0573 2684425","e":"loehne.bek@gmail.com","u":"","a":52.220107,"o":8.722617},{"n":"Kulturzentrum für Bildung und Integration e.V.","s":"Teichstrasse 45","p":"79539","c":"Lörrach","t":"0762 19358856","e":"","u":"","a":47.612043,"o":7.657505},{"n":"Kulturverein zur Integration von Jugendlichen in L. e.V.","s":"Mühlenstr. 51","p":"23552","c":"Lübeck","t":"‭0451 75099‬","e":"lubeck.sb@gmail.com","u":"","a":53.862913,"o":10.687518},{"n":"Kücknitzer Integrations- und Kulturverein e.V.","s":"Bäckereistr. 16","p":"23569","c":"Lübeck","t":"‭0451 3072205","e":"lubeckkucknitz.sb@gmail.com","u":"","a":53.903825,"o":10.804479},{"n":"Bildungs- und Kulturverein Lüdenscheid e.V.","s":"Worthstr. 4","p":"58511","c":"Lüdenscheid","t":"02351 24397","e":"ludenscheidcamii@gmail.com","u":"","a":51.221197,"o":7.641952},{"n":"Gahmener Bildungs- und Kulturzentrum e.V.","s":"Zum Gewerbepark 6","p":"44532","c":"Lünen","t":"0230 6944811","e":"gahmen19@gmail.com","u":"","a":51.58707,"o":7.511157},{"n":"Verein zur Förderung der Integration und Bildung in Lünen Brambauer e.V.","s":"Ottostraße 53-55","p":"44536","c":"Lünen","t":"0231 728775","e":"brambauer06@gmail.com","u":"","a":51.599796,"o":7.43464},{"n":"Verein zur Förderung der Integration und Bildung in Lünen Süd e.V.","s":"Jägerstraße 41","p":"44532","c":"Lünen","t":"0230 6963334","e":"lunensud07@gmail.com","u":"","a":51.590685,"o":7.52979},{"n":"Verein zur Förderung der Integration und Bildung in Lünen e.V.","s":"Hüttenweg 11","p":"44534","c":"Lünen","t":"049230661936","e":"lunen05@gmail.com","u":"","a":51.621253,"o":7.52897},{"n":"Bildungs-und Kulturverein Maintal e.V.","s":"Mozartstr. 7","p":"63477","c":"Maintal","t":"0277 281371","e":"bkv.maintal@gmail.com","u":"","a":50.134244,"o":8.840754},{"n":"Kultur- und Bildungsverein Mainz e.V.","s":"Canisiusstr. 21a","p":"55122","c":"Mainz","t":"0613 1676022","e":"kbvmainz@gmail.com","u":"","a":50.006479,"o":8.21658},{"n":"Verein zur Förderung der Integration und Bildung in Mannheim e.V.","s":"Pettenkoferstr. 4-6","p":"68169","c":"Mannheim","t":"0621 380080","e":"info@vfib-mannheim.de","u":"","a":49.502449,"o":8.471836},{"n":"Verein zur Förderung der Integration und Bildung in Mannheim-Rheinau e.V.","s":"Karlruherstr. 5","p":"68219","c":"Mannheim-Rheinau","t":"0621 80397850","e":"rheinau.skrt@gmail.com","u":"","a":49.449928,"o":8.52791},{"n":"Verein zur Förderung der Integration und Bildung in Mannheim-Schönau e.V.","s":"Lötzener Weg 9","p":"68307","c":"Mannheim-Schönau","t":"0621 430 406 00","e":"vfib-schonau@hotmail.de","u":"","a":49.550091,"o":8.472576},{"n":"Verein zur Förderung der Integration und Bildung Marienheide e.V.","s":"Hauptsstr. 62","p":"51709","c":"Marienheide","t":"0226 4286161","e":"vereinfib@hotmail.de","u":"","a":51.08331,"o":7.531791},{"n":"Verein zur Förderung der Integration und Bildung in Marl e.V.","s":"Victoriastraße 22","p":"45772","c":"Marl","t":"02365 47382","e":"marlvfib18@gmail.com","u":"","a":51.665197,"o":7.132756},{"n":"Memminger Kultur und Integrationsverein e.V.","s":"Eduard-Flachstr. 3","p":"87700","c":"Memmingen","t":"0833 14201","e":"mm_kiv@hotmail.de","u":"","a":47.988708,"o":10.170445},{"n":"Mescheder Bildungs- und Kulturverein e.V.","s":"Arnsbergerstr. 19","p":"59872","c":"Meschede","t":"0291 2005590","e":"mesbkv@gmail.com","u":"","a":51.346769,"o":8.279436},{"n":"Verein zur Förderung der Integration und Bildung in Michelstadt e.V.","s":"Fabrik Str.1","p":"64720","c":"Michelstadt","t":"0606 171527","e":"vfib.mich@gmail.com","u":"","a":49.669274,"o":9.001051},{"n":"Repelener Kultur- und Bildunsverein e.V.","s":"Lintforterstr. 23","p":"47445","c":"Moers","t":"0284 197850","e":"rkbv.repelen@gmail.com","u":"","a":51.489605,"o":6.59103},{"n":"Verein für Integration, Kultur und Bildung (Moers Kapellen) e.V.","s":"Ewaldstr. 17-18","p":"47447","c":"Moers","t":"0284 163483","e":"vib.kapellen@gmail.com","u":"","a":51.40958,"o":6.595754},{"n":"Verein für Integration, Kultur und Bildung (Moers Meerbeck) e.V.","s":"Barbarastr. 12","p":"47443","c":"Moers","t":"0284 150076","e":"vib.meerbeck@gmail.com","u":"","a":51.463708,"o":6.646699},{"n":"Verein zur Förderung der Integration und Bildung in Mosbach e.V.","s":"Alte Brückenstr. 14","p":"74821","c":"Mosbach","t":"0626163256","e":"mosbach.skrt@gmail.com","u":"","a":49.349029,"o":9.102044},{"n":"Kultur und Bildungsverein in Munderkingen e.V.","s":"Rottenackerstr. 16","p":"89597","c":"Munderkingen","t":"0739 33503","e":"kbvmdkg@live.de","u":"","a":48.236783,"o":9.6475},{"n":"Integrations- und Bildungsverein in Mönchengladbach e.V.","s":"Neusser Str. 51c","p":"41065","c":"Mönchengladbach","t":"0216 1658177","e":"talebe.mg@gmail.com","u":"","a":51.203908,"o":6.458465},{"n":"Kulturzentrum für Integration und Bildung e.V. Mühlacker","s":"Pforzheimerstr. 85-87","p":"75417","c":"Mühlacker","t":"07041 44 838","e":"muehlacker.skrt@gmail.com","u":"","a":48.948468,"o":8.832755},{"n":"Bildungs- und Kulturverein Mühlheim e.V.","s":"Friedenstr. 150","p":"63165","c":"Mühlheim","t":"0610 8799067","e":"bkv.muehlheim@gmail.com","u":"","a":50.108058,"o":8.846714},{"n":"Integrations und Kulturverein e.V. (Mülheim Ruhr)","s":"Hohestr. 19","p":"45476","c":"Mülheim an der Ruhr","t":"0208 74006513","e":"mulheim.ikv@gmail.com","u":"","a":51.449612,"o":6.849855},{"n":"Interkulturelle Bildung in München e.V.","s":"Marieluise-Fleißer-Bogen 6","p":"81737","c":"München","t":"089 20927477","e":"neuperlachkursu@gmail.com","u":"","a":48.099027,"o":11.661039},{"n":"Münchner Integrations- und Bildungsverein e.V.","s":"Martin-Luther-Str. 20","p":"81539","c":"München","t":"089 6208190","e":"info@mibev.de","u":"","a":48.113557,"o":11.576237},{"n":"Verein für Bildung, Kultur und Integration in München e.V.","s":"Camerloherstr. 135","p":"80689","c":"München","t":"089 23546411","e":"vbki.muenchen@gmail.com","u":"","a":48.134361,"o":11.490973},{"n":"Verein für Integration und Bildung in München e.V.","s":"Bodenseestr. 222","p":"81243","c":"München","t":"089 89546530","e":"vibm.ev@gmail.com","u":"","a":48.143537,"o":11.4268},{"n":"Verein für Integrations und Bildungförderung in München e.V.","s":"Schleißheimer Str. 443","p":"80935","c":"München","t":"089 37003737","e":"vib_muc@gmx.de","u":"","a":48.208207,"o":11.562865},{"n":"Verein zur Förderung der Integration und Bildung in Münster e.V.","s":"Bernhard-Ernst-Str. 7","p":"48155","c":"Münster","t":"0251 664258","e":"muenster.bek@gmail.com","u":"","a":51.952287,"o":7.637234},{"n":"Kulturzentrum für Bildung und Integration e.V. Neckarsulm","s":"Rötelstr. 18","p":"74172","c":"Neckarsulm","t":"07132 9999444","e":"info@kbineckarsulm.de","u":"","a":49.179457,"o":9.218971},{"n":"Integrations- und Bildungsverein in Nettetal e.V.","s":"Rahe 5","p":"41334","c":"Nettetal","t":"0215 3730737","e":"talebenettetal@gmail.com","u":"","a":51.278025,"o":6.250545},{"n":"Verein für Integration mit Bildung und Kultur e.V.","s":"Reuttier Str. 128","p":"89231","c":"Neu-Ulm","t":"0731 37886457","e":"vibk@outlook.de","u":"","a":48.383934,"o":10.023366},{"n":"Verien zur Förderung der Integration und Bildung in Neuburg a.d. Donau e.V.","s":"Fünfzehnerstr. 10","p":"86633","c":"Neuburg a.d. Donau","t":"08431 38203","e":"neuburg.n@gmail.com","u":"","a":48.734172,"o":11.17575},{"n":"Neufahrener Kultur und Bildung e.V.","s":"Ditersheimer Str. 25","p":"85375","c":"Neufahrn bei Freising","t":"0816 562388","e":"neufahrnkib@gmail.com","u":"","a":48.312771,"o":11.663967},{"n":"Bildungs- und Kulturzentrum in Neumünster e.V.","s":"Christianstr. 22","p":"24534","c":"Neumünster","t":"‭04321 42718","e":"neumunster.sb@gmail.com","u":"","a":54.075913,"o":9.986435},{"n":"Bildungs-und Kulturverein e.V.","s":"Hülchratherstr. 21a","p":"41466","c":"Neuss","t":"0213 14032887","e":"kbthneuss@gmail.com","u":"","a":51.154796,"o":6.693263},{"n":"Verein zur Förderung der Integration und Bildung in Neustadt an der Weinstraße e.V.","s":"Hindenburg Str.70","p":"67433","c":"Neustadt","t":"","e":"vfib.neustadt.weinstrasse@gmail.com","u":"","a":49.353022,"o":8.148084},{"n":"Bildungs- und Kulturverein Neuwied e.V","s":"Engerser Land 103","p":"56564","c":"Neuwied","t":"01590 1957061","e":"bkv-neuwied@hotmail.com","u":"","a":50.429389,"o":7.484037},{"n":"Kulturverein zur Förderung und Integration von Jugendlichen in Nienburg e.V.","s":"Im Meerbachbogen 10","p":"31582","c":"Nienburg","t":"05021 8981983","e":"nienburg.bek@gmail.com","u":"","a":52.636781,"o":9.221072},{"n":"Bildung und Integration in Norderstedt e.V.","s":"Stettiner Str. 7","p":"22850","c":"Norderstedt","t":"‭040 35778743","e":"norderstedt.sb@gmail.com","u":"","a":53.690317,"o":9.981009},{"n":"Bildung und Integration in Nürnberg e.V.","s":"Spittlertorgraben 47 b","p":"90429","c":"Nürnberg","t":"0911 264829","e":"info@bin-ev.org","u":"","a":49.452362,"o":11.068127},{"n":"Bildung und Integration in Südstadt e.V.","s":"Zufuhrstr. 12","p":"90443","c":"Nürnberg","t":"0911 4180320","e":"info@sultanahmet-nbg.de","u":"","a":49.445482,"o":11.067211},{"n":"Kultur und Bildungszentrum Oberhausen e.V.","s":"Duisburgerstr.539","p":"46049","c":"Oberhausen","t":"0208 897853","e":"ovbi.osterfeld@gmail.com","u":"","a":51.469117,"o":6.822017},{"n":"Osterfelder Verein für Bildung und Integration e.V. (Oberhausen)","s":"Fahnhorststr. 41-43","p":"46117","c":"Oberhausen","t":"0208 897853","e":"ovbi.osterfeld@gmail.com","u":"","a":51.500196,"o":6.868175},{"n":"Kulturzentrum für Bildung und Integration Oberndorf a.N. e.V.","s":"Rosenbergstr. 12","p":"78727","c":"Oberndorf","t":"07423 951 981","e":"oberndorf.skrt@gmail.com","u":"","a":48.290874,"o":8.574335},{"n":"Ochsenhausener Integrations und Bildungsverein e.V.","s":"Poststr. 50","p":"88416","c":"Ochsenhausen","t":"0152 26851141","e":"ochsenhausener@gmail.com","u":"","a":48.072649,"o":9.951327},{"n":"Verein zur Förderung der Integration und Bildung in Oelde e.V.","s":"Wallstr. 25","p":"59302","c":"Oelde","t":"0252 261951","e":"info@vfib-oelde.de","u":"","a":51.827731,"o":8.139192},{"n":"Verein zur Förderung der Integration und Bildung in Oer Erkenschwick e.V.","s":"Holtgarde 9","p":"45739","c":"Oer Erkenschwick","t":"02368 960055","e":"erkenschwick17@gmail.com","u":"","a":51.660517,"o":7.270513},{"n":"Offenbacher Bildunds- und Kulturverein e.V.","s":"Marienstr. 105","p":"63067","c":"Offenbach","t":"0621 6359158","e":"bkv.offenbach@gmail.com","u":"","a":50.097906,"o":8.754677},{"n":"Verein zur Förderung der Integration und Bildung in Osnabrück e.V.","s":"Schützen Str. 25-27","p":"49084","c":"Osnabrück","t":"0541 27686","e":"osnabrueck.bek@gmail.com","u":"","a":52.280003,"o":8.076026},{"n":"Integrations-und Bildungsverein Pforzheim e.V.","s":"Ispringerstr.1","p":"75172","c":"Pforzheim","t":"0723 17786316","e":"Ibvpforzheim@gmail.com","u":"","a":48.896185,"o":8.694751},{"n":"Kultur und Bildungsverein Pfullendorf e.V.","s":"Mühlweg 17","p":"88630","c":"Pfullendorf","t":"0755 21562","e":"kbvpfullendorf@gmail.com","u":"","a":47.926306,"o":9.249562},{"n":"Islamische Kulturzentrum Pirmasens e.V.","s":"Herzog Str.21","p":"66953","c":"Pirmasens","t":"0633 176544","e":"ikz.pirmasens@gmail.com","u":"","a":49.202848,"o":7.608283},{"n":"Verein zur Förderung der Integration und Bildung Plettenberg e.V.","s":"Grünestr. 6","p":"58840","c":"Plettenberg","t":"02391 4049","e":"vfib_plettenberg@web.de","u":"","a":51.212707,"o":7.875079},{"n":"Verein zur Förderung der Integration und Bildung in Quierschied e.V.","s":"Am Forsthaus 5","p":"66287","c":"Quierschied","t":"06825 9897416","e":"vfib.quier@gmail.com","u":"","a":49.343629,"o":7.044852},{"n":"Rader Bildungs-und Kulturverein e.V.","s":"Grabenstr. 6","p":"42477","c":"Radevormwald","t":"0219 53832","e":"radevormwaldmsh@gmail.com","u":"","a":51.202541,"o":7.355047},{"n":"Zentrum für Bildung, Kultur und Integration Rastatt e.V.","s":"Lützowerstr. 5","p":"76437","c":"Rastatt","t":"07222 340 82","e":"zbki.rastatt@arcor.de","u":"","a":48.850635,"o":8.206013},{"n":"Verein zur Förderung der Integration und Bildung in Recklinghasuen Hochlarmark e.V.","s":"Karlstraße 3","p":"45661","c":"Recklinghausen","t":"02361 36794","e":"hochlarmark15@gmail.com","u":"","a":51.559551,"o":7.189308},{"n":"Verein zur Förderung der Integration und Bildung in Recklinghasuen Süd e.V.","s":"Bochumer Str. 51","p":"45663","c":"Recklinghausen","t":"02361 9790796","e":"recklinghausensud16@gmail.com","u":"","a":51.578483,"o":7.213695},{"n":"Verein zur Förderung der Integration und Bildung in Recklinghausen e.V.","s":"Dortmunder Str.170-190","p":"45665","c":"Recklinghausen","t":"0236 13885091","e":"recklinghausen14@gmail.com","u":"","a":51.621583,"o":7.227273},{"n":"Verein der Bildung und Integration e.V.","s":"Adolf-Schmetzerstr. 37","p":"93055","c":"Regensburg","t":"0941 7957136","e":"vbi-regensburg@web.de","u":"","a":49.016292,"o":12.11589},{"n":"Bildungs- und Kulturverein Reinheim e.V.","s":"Bahnhofstr. 19","p":"64354","c":"Reinheim","t":"0616 25696","e":"bkv.reinheim@gmail.com","u":"","a":49.829436,"o":8.836127},{"n":"Remscheider Bildungs- und Kulturverein e.V","s":"Kremenhollerstr. 24-26","p":"42857","c":"Remscheid","t":"02191 973101","e":"kbthremscheid@gmail.com","u":"","a":51.175088,"o":7.181417},{"n":"Verein zur Förderung der Integration und Bildung in Rheine e.V.","s":"Elterstr. 57a","p":"48429","c":"Rheine","t":"","e":"rheine.bek@gmail.com","u":"","a":52.27705,"o":7.451836},{"n":"Verein zur Förderung der Integration und Bildung in Rietberg e.V.","s":"Stennerlandstr. 114","p":"33397","c":"Rietberg","t":"0524 4974562","e":"vfibrietberg@gmail.com","u":"","a":51.818537,"o":8.445535},{"n":"Rosenheimer Bildungs- und Kulturverein e.V.","s":"Innstr. 71","p":"83022","c":"Rosenheim","t":"","e":"","u":"https://www.vikz.de/de/gemeinden/anfangsbuchstabe_ort/r/ort/Rosenheim.html","a":47.855367,"o":12.140566},{"n":"Rudersberger Kultur-und Bildungsverein e.V.","s":"Welzheimerstr. 3","p":"72535","c":"Rudersberg","t":"07183 37 556","e":"rudersberg.skrt@gmail.com","u":"","a":48.885259,"o":9.53056},{"n":"Verein zur Förderung der Integration und Bildung in Saarbrücken e.V.","s":"Bergstr. 62","p":"66115","c":"Saarbrücken","t":"0681 68732020","e":"vfib.sb@gmail.com","u":"","a":49.241529,"o":6.94306},{"n":"Bildung und Kultur Verein Salzgitter e. V.","s":"Reppnersche Str 54-58","p":"38226","c":"Salzgitter","t":"05341 861194","e":"salzgitter.bek@gmail.com","u":"","a":52.168274,"o":10.329184},{"n":"Verein zur Förderung der Integration und Bildung in Schloss Holte e.V.","s":"Oerlinghauserstr. 2","p":"33758","c":"Schloss-Holte","t":"05207 9249992","e":"vfibschlossholte@gmail.com","u":"","a":51.910445,"o":8.609254},{"n":"Schrobenhausener Integration Bildungsverein e.V.","s":"Bahnhofstr. 17 & 24","p":"86529","c":"Schrobenhausen","t":"08252 820443","e":"sib_ev@gmx.de","u":"","a":48.563551,"o":11.261298},{"n":"Bildungs- und Kulturverein Schwalmstadt e.V.","s":"Walkmühlenweg 12","p":"34613","c":"Schwalmstadt","t":"0669 122267","e":"bkv.treysa@gmail.com","u":"","a":50.915072,"o":9.18324},{"n":"Integrations- und Bildungsverein e.V.","s":"Wilhelm-Leuschner-Str. 2","p":"97421","c":"Schweinfurt","t":"09721 86699","e":"ibv-schweinfurt@hotmail.de","u":"","a":50.04723,"o":10.221214},{"n":"Bildungs- und Kulturverein Schwerte e.V.","s":"Hagenerstr. 61a","p":"58239","c":"Schwerte","t":"02304 17500","e":"bkvschwerte@outlook.de","u":"","a":51.435528,"o":7.564479},{"n":"Kulturzentrum für Bildung und Integration Schwäbisch-Gmünd e.V.","s":"Benzholzstr. 18","p":"73525","c":"Schwäbisch Gmünd","t":"0717 1877948","e":"schwgemuend.skrt@gmail.com","u":"","a":48.800415,"o":9.824019},{"n":"Sendener Kultur- und Integrationsverein e.V.","s":"Hauptstr. 128","p":"89250","c":"Senden","t":"0730 732440","e":"skiv-senden@outlook.de","u":"","a":48.32518,"o":10.029964},{"n":"Bildungs- und Kulturverein Siegen e.V.","s":"Hagenerstr. 91","p":"57072","c":"Siegen","t":"","e":"Siegenmsh@gmail.com","u":"","a":50.886025,"o":8.028735},{"n":"Deutsch-Türkisches Kulturzentrum für Integration und Islamische Bildung Sindelfingen e.V.","s":"Max-Eyth-Str. 6-8","p":"71065","c":"Sindelfingen","t":"0703 1416895","e":"hisar@gmx.de","u":"","a":48.697112,"o":9.005896},{"n":"Kultur und Bildungsverein Sinn e.V.","s":"Moselstr. 8","p":"35764","c":"Sinn","t":"0631 31174508","e":"kbv.sinn@gmail.com","u":"","a":50.648442,"o":8.332587},{"n":"Integrations- und Kulturverein Solingen Mitte e.V","s":"Konrad-Adenauerstr. 22","p":"42651","c":"Solingen","t":"0212 2244163","e":"kbthsolingen@gmail.com","u":"","a":51.176083,"o":7.08474},{"n":"Ohligser Bildungs- und Kulturverein Solingen e.V.","s":"Querstr. 9","p":"42699","c":"Solingen","t":"0212 2331358","e":"kbthohligs@gmail.com","u":"","a":51.158937,"o":7.009228},{"n":"Verein zur Förderung der Integration und Bildung in St. Ingbert e.V.","s":"Pfargasse 5","p":"66386","c":"St. Ingbert","t":"0689 4385005","e":"vfib.igb@gmail.com","u":"","a":49.278838,"o":7.115671},{"n":"Stadtalledorfer Bildungs und Integrationsverein","s":"Albert Schweitzerstr.20","p":"35260","c":"Stadtallendorf","t":"0642 85193","e":"biv.stadtallendorf@gmail.com","u":"","a":50.823031,"o":9.010625},{"n":"Starnberger Integrations- und Kulturverein e.V.","s":"Weilheimer Str. 13a","p":"82319","c":"Starnberg","t":"0179 4859621","e":"starnbergcami@gmail.com","u":"","a":47.990135,"o":11.323839},{"n":"Integrations- und Bildungsverein in Stolberg e.V.","s":"Schneidmühle 30","p":"52222","c":"Stolberg","t":"02402 860419","e":"talebe.stol@gmail.com","u":"","a":50.782948,"o":6.217774},{"n":"Islamische Gemeinde e. V. Zuffenhausen","s":"Markgröningerstr. 57","p":"70435","c":"Stuttgart","t":"07118790317","e":"zuffenhausen.skrt@gmail.com","u":"","a":48.833567,"o":9.168297},{"n":"Kultur- und Bildungswerk Stuttgart KBS e.V.","s":"Friedhofstr. 71","p":"70191","c":"Stuttgart","t":"0711 257 17 77","e":"kb-stuttgart@msn.com","u":"","a":48.794631,"o":9.180272},{"n":"Tuttlinger Förderverein zur Bildung und Integration e.V.","s":"Möhringerstr. 82","p":"78532","c":"Tuttlingen","t":"0746 1171 55 45","e":"tfbi.tuttlingen@gmail.com","u":"","a":47.980505,"o":8.809371},{"n":"Donau Kultur und Bildung e.V. Ulm","s":"Neue Str. 3","p":"89077","c":"Ulm","t":"0731 64646","e":"dkbulm@googlemail.com","u":"","a":48.395007,"o":9.979914},{"n":"Kultur Zentrum Unterheinriet e.V.","s":"Oberheinrieterstr. 3","p":"74199","c":"Unterheinriet","t":"0713 0451993","e":"unterheinriet.skrt@gmail.com","u":"","a":49.085478,"o":9.323665},{"n":"Aktive Bildung und Integration in Vechta e.V.","s":"Diepholzer Str. 14","p":"49377","c":"Vechta","t":"‭04441 2909","e":"vechta.sb@gmail.com","u":"","a":52.715611,"o":8.288714},{"n":"Velberter Bildungs- und Kulturverein e.V","s":"Feuerdornstr. 1-3","p":"42549","c":"Velbert","t":"02051258059","e":"kbthvelbert@gmail.com","u":"","a":51.332053,"o":7.048748},{"n":"Verein zur Förderung der Integration und Bildung in Völklingen e.V.","s":"Moltkestr. 12 A","p":"66333","c":"Völklingen","t":"06898 25571","e":"vfib.vk@gmail.com","u":"","a":49.251131,"o":6.856971},{"n":"Wahlstädter Integration und Bildungszentrum e.V.","s":"Amselweg 8","p":"23812","c":"Wahlstedt","t":"","e":"wahlstedt.sb@gmail.com","u":"","a":53.953294,"o":10.217141},{"n":"Bildungs- und Kulturverein Waldbröl e.V","s":"Bröhlbahnstrasse 9","p":"51545","c":"Waldbröl","t":"02291901063","e":"kbthwaldbroel@gmail.com","u":"","a":50.875181,"o":7.615948},{"n":"Verein zur Förderung der Integration und Bildung in Waltrop e.V","s":"Am Schwarzbach 60","p":"45731","c":"Waltrop","t":"02309 77731","e":"waltrop10@gmail.com","u":"","a":51.626146,"o":7.426275},{"n":"Kultur-und Bildungsverein e.V. Reutlingen","s":"Unterer Mühlweg 37","p":"72827","c":"Wannweil","t":"0157 56071598","e":"reutlingen.skrt@gmail.com","u":"","a":48.517051,"o":9.148264},{"n":"Bildung und Integration in Wedel e.V.","s":"Pulver Str. 81","p":"22880","c":"Wedel","t":"‭04103 86485","e":"wedel.sb@gmail.com","u":"","a":53.570564,"o":9.722713},{"n":"Bildung und Kultur Weiden e.V.","s":"Weidingweg 61","p":"92637","c":"Weiden","t":"0961 26880","e":"weiden.selimiye@gmail.com","u":"","a":49.68453,"o":12.122598},{"n":"Bildungs- und Kulturverein Weilmünster e.V.","s":"Neugasse 15","p":"35789","c":"Weilmünster","t":"0647 27041","e":"","u":"","a":50.430381,"o":8.37574},{"n":"Verein zur Förderung der Integration und Bildung Werdohl e.V.","s":"Eggapfad 26","p":"58791","c":"Werdohl","t":"0239 270905","e":"vfibwerdohl@gmail.com","u":"","a":51.257732,"o":7.764215},{"n":"Bildungs- und Jugendhilfe Werne e.V.","s":"Brevingstr. 50","p":"59368","c":"Werne","t":"02389 7807272","e":"wernecami@gmail.com","u":"","a":51.665307,"o":7.657153},{"n":"Bildungs- und Kulturverein e.V. (Wesel)","s":"Breiter Weg 32-34","p":"46483","c":"Wesel","t":"02083 8679979","e":"oberhausen.kubilob@gmail.com","u":"","a":51.664808,"o":6.616068},{"n":"Kultur und Bildungsverein Wetzlar e.V","s":"Hermann Steinerstr. 78","p":"35576","c":"Wetzlar","t":"0644 132516","e":"kbv.wetzlar@gmail.com","u":"","a":50.570561,"o":8.531245},{"n":"Bildungs- und Kulturverein Wiesbaden e.V.","s":"Dotzheimerstr. 24-26","p":"65185","c":"Wiesbaden","t":"0611 376333","e":"bkv.wiesbaden@gmail.com","u":"","a":50.078145,"o":8.233643},{"n":"Verein zur Förderung der Integration und Bildung in Wittlich e.V.","s":"Kegelbahn 9","p":"54516","c":"Wittlich","t":"065719989968","e":"kbthwittlich@gmail.com","u":"","a":49.987584,"o":6.887738},{"n":"Barmer Integrations- und Bildungsverein e.V.","s":"Höhne 102","p":"42275","c":"Wuppertal","t":"0202 309120","e":"kbthbarmen@gmail.com","u":"","a":51.271584,"o":7.205964},{"n":"Wuppertaler Integrations- und Bildungsverein e.V.","s":"Friedrich-Ebert-Str. 175","p":"42117","c":"Wuppertal","t":"0202 3179671","e":"kbthwuppertal@gmail.com","u":"","a":51.248533,"o":7.123269},{"n":"Integrations-, Kultur- und Bildungsverein in Würzburg/Unterfranken e.V.","s":"Erthalstr. 1","p":"97074","c":"Würzburg","t":"0931 886908","e":"wurzburg2016@gmail.com","u":"","a":49.783902,"o":9.941304}];
+const K = Math.PI/180;
+function km(a,b){const dLat=(b[0]-a[0])*K,dLon=(b[1]-a[1])*K;
+ const s=Math.sin(dLat/2)**2+Math.cos(a[0]*K)*Math.cos(b[0]*K)*Math.sin(dLon/2)**2;
+ return 2*6371*Math.asin(Math.min(1,Math.sqrt(s)));}
+/* deutsche Schreibweise, unter 1 km in Metern */
+function dist(d){
+ if(d<0.95) return Math.max(30,Math.round(d*1000/10)*10).toString().replace(/\./g,'')+' m';
+ if(d<10) return d.toFixed(1).replace('.',',')+' km';
+ return Math.round(d).toString()+' km';}
+function addr(g){return [g.s,(g.p+' '+g.c).trim()].filter(Boolean).join(', ');}
+function route(g){return 'https://www.google.com/maps/dir/?api=1&destination='+g.a+','+g.o;}
+function osmlink(g){return 'https://www.openstreetmap.org/?mlat='+g.a+'&mlon='+g.o+'#map=17/'+g.a+'/'+g.o;}
+
+const map=L.map('map',{scrollWheelZoom:false}).setView([51.3,10.2],6);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,
+ attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'}).addTo(map);
+const pinNear=L.divIcon({className:'',html:'<div class="pin near"></div>',iconSize:[17,17],iconAnchor:[8,8]});
+const pinStd=L.divIcon({className:'',html:'<div class="pin"></div>',iconSize:[13,13],iconAnchor:[7,7]});
+const pinMe=L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+
+G.forEach(g=>{
+ g._mk=L.marker([g.a,g.o],{icon:pinStd,title:g.n}).addTo(map)
+  .bindPopup('<strong>'+g.n+'</strong><br>'+addr(g)+'<br><a href="'+route(g)+'" target="_blank" rel="noopener">Route</a> · <a href="'+osmlink(g)+'" target="_blank" rel="noopener">OpenStreetMap</a>');
+});
+let ref=null, refMk=null, refCircle=null;
+
+const listEl=document.getElementById('list'), q=document.getElementById('q');
+const nearSec=document.getElementById('nearSec'), nearList=document.getElementById('nearList');
+const statusEl=document.getElementById('status'), mapNote=document.getElementById('mapNote');
+
+function actions(g){
+ let a='<a href="'+route(g)+'" target="_blank" rel="noopener">Route</a>'+
+       '<a href="'+osmlink(g)+'" target="_blank" rel="noopener">OSM</a>';
+ if(g.t)a+='<a href="tel:'+g.t.replace(/[^+0-9]/g,'')+'">Anrufen</a>';
+ if(g.e)a+='<a href="mailto:'+g.e+'">E-Mail</a>';
+ if(g.u)a+='<a href="'+g.u+'" target="_blank" rel="noopener">Website</a>';
+ return a;
+}
+function renderNear(){
+ if(!ref){nearSec.hidden=true;return;}
+ const sel=G.slice().sort((a,b)=>a._d-b._d).slice(0,5);
+ nearSec.hidden=false;
+ document.getElementById('nearTitle').textContent='Die '+sel.length+' nächsten ab '+ref.label;
+ nearList.innerHTML=sel.map((g,i)=>
+  '<article class="card'+(i===0?' top':'')+'">'+
+   '<div class="rank">'+(i+1)+'</div>'+
+   '<div class="cbody"><p class="cname">'+g.n+'</p><p class="caddr">'+addr(g)+'</p>'+
+    '<div class="cact">'+actions(g)+'</div></div>'+
+   '<div class="dist"><b>'+dist(g._d)+'</b><span>Luftlinie</span></div>'+
+  '</article>').join('');
+}
+function renderList(){
+ const f=(q.value||'').toLowerCase().trim();
+ let sel=G.filter(g=>!f||(g.n+' '+g.c+' '+g.p+' '+g.s).toLowerCase().includes(f));
+ sel=sel.slice().sort(ref&&!f ? ((a,b)=>a._d-b._d)
+   : ((a,b)=>a.c.localeCompare(b.c,'de')||a.n.localeCompare(b.n,'de')));
+ document.getElementById('listCount').textContent=sel.length+' von '+G.length;
+ document.getElementById('listTitle').textContent=(ref&&!f)?'Alle nach Entfernung':'Alle Gemeinden';
+ listEl.innerHTML=sel.length?sel.map(g=>
+  '<div class="item" data-i="'+G.indexOf(g)+'">'+
+   '<div class="who"><span class="nm">'+g.n+'</span><span class="ad">'+addr(g)+'</span></div>'+
+   (ref?'<span class="dm">'+dist(g._d)+'</span>':'')+
+  '</div>').join(''):'<div class="empty">Nichts gefunden. Andere Schreibweise oder nur die PLZ versuchen.</div>';
+}
+listEl.addEventListener('click',e=>{
+ const it=e.target.closest('.item');if(!it)return;
+ const g=G[+it.dataset.i];if(!g)return;
+ map.setView([g.a,g.o],15,{animate:true});g._mk.openPopup();
+});
+
+function setRef(lat,lon,label,zoom){
+ ref={lat,lon,label};
+ G.forEach(g=>g._d=km([lat,lon],[g.a,g.o]));
+ const near=G.slice().sort((a,b)=>a._d-b._d).slice(0,25), nearSet=new Set(near);
+ G.forEach(g=>g._mk.setIcon(nearSet.has(g)?pinNear:pinStd));
+ if(refMk)refMk.remove(); if(refCircle)refCircle.remove();
+ refMk=L.marker([lat,lon],{icon:pinMe}).addTo(map).bindPopup('Dein Bezugspunkt');
+ refCircle=L.circle([lat,lon],{radius:10000,color:'#1a73e8',weight:1,opacity:.45,fillColor:'#1a73e8',fillOpacity:.05}).addTo(map);
+ mapNote.textContent='10-km-Kreis · nächste 25 hervorgehoben';
+ renderNear(); renderList();
+ map.fitBounds(L.latLngBounds([[lat,lon]].concat(near.slice(0,8).map(g=>[g.a,g.o]))).pad(.22));
+ msg(''); document.getElementById('geoTxt').textContent='Meinen Standort verwenden';
+}
+function clearRef(){
+ ref=null;
+ if(refMk){refMk.remove();refMk=null;} if(refCircle){refCircle.remove();refCircle=null;}
+ G.forEach(g=>{delete g._d;g._mk.setIcon(pinStd);});
+ nearSec.hidden=true;renderList();map.setView([51.3,10.2],6);
+ mapNote.textContent='ganze Bundesrepublik';msg('');
+ addrInput.value='';addrbox.classList.remove('has');
+}
+function msg(text,isErr){statusEl.className='msg'+(isErr?' err':'');statusEl.textContent=text;}
+document.getElementById('clear').onclick=clearRef;
+
+/* ---------- Standort ---------- */
+const geoBtn=document.getElementById('geo'), geoTxt=document.getElementById('geoTxt');
+geoBtn.onclick=()=>{
+ if(!navigator.geolocation){msg('Dieser Browser gibt keinen Standort frei – bitte Adresse mit Straße und Hausnummer eingeben.',1);return;}
+ geoBtn.classList.add('busy');msg('Standort wird abgefragt …');
+ navigator.geolocation.getCurrentPosition(
+  p=>{geoBtn.classList.remove('busy');setRef(p.coords.latitude,p.coords.longitude,'meinem Standort',12);},
+  e=>{geoBtn.classList.remove('busy');geoTxt.textContent='Erneut versuchen';
+      msg(e.code===1
+        ? 'Standort nicht freigegeben. Du kannst ihn in den Browser-Einstellungen erlauben – oder einfach unten Straße und Hausnummer eingeben.'
+        : 'Standort nicht verfügbar ('+e.message+'). Bitte Straße und Hausnummer eingeben.',1);
+      addrInput.focus();},
+  {enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+};
+
+/* ---------- Adress-Fallback ---------- */
+const addrInput=document.getElementById('addr'), sugg=document.getElementById('sugg');
+const addrbox=document.getElementById('addrbox'), clr=document.getElementById('clr');
+let tmr=null, ctrl=null, shown=[];
+function showSugg(items){
+ shown=items;
+ if(!items.length){sugg.hidden=true;sugg.innerHTML='';return;}
+ sugg.innerHTML=items.map((it,i)=>'<div data-i="'+i+'"><strong>'+it.main+'</strong><small>'+it.sub+'</small></div>').join('');
+ sugg.hidden=false;
+ sugg.querySelectorAll('div').forEach(d=>d.onclick=()=>{
+  const it=shown[+d.dataset.i];sugg.hidden=true;addrInput.value=it.label;addrbox.classList.add('has');
+  setRef(it.lat,it.lon,'„'+it.label+'“',13);
+ });
+}
+function photon(qs){
+ if(ctrl)ctrl.abort(); ctrl=new AbortController();
+ return fetch('https://photon.komoot.io/api/?lang=de&limit=6&q='+encodeURIComponent(qs),{signal:ctrl.signal})
+  .then(r=>r.json())
+  .then(j=>(j.features||[]).map(f=>{
+    const p=f.properties||{},co=(f.geometry||{}).coordinates||[];
+    if(!co.length)return null;
+    const street=[p.street||p.name,p.housenumber].filter(Boolean).join(' ');
+    const city=[p.postcode,p.city||p.town||p.village||p.municipality].filter(Boolean).join(' ');
+    const label=[street,city].filter(Boolean).join(', ');
+    if(!label)return null;
+    return {main:street||p.name||label,sub:[city,p.state,p.country].filter(Boolean).join(' · '),
+            label,lat:co[1],lon:co[0]};}).filter(Boolean));
+}
+function nominatim(qs){
+ return fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=de&limit=5&addressdetails=1&q='+encodeURIComponent(qs))
+  .then(r=>r.json())
+  .then(j=>j.map(h=>({main:h.display_name.split(',')[0],
+    sub:h.display_name.split(',').slice(1,4).join(','),
+    label:h.display_name.split(',').slice(0,3).join(','),lat:+h.lat,lon:+h.lon})));
+}
+function searchAddr(qs){
+ msg('Suche Adresse …');
+ photon(qs).catch(()=>[]).then(items=>items.length?items:nominatim(qs).catch(()=>[])).then(items=>{
+   if(!items.length){msg('Adresse nicht gefunden – bitte Hausnummer und Ort ergänzen (z. B. „Hauptstr. 5, 45964 Gladbeck“).',1);return;}
+   msg('');showSugg(items);
+ });
+}
+addrInput.addEventListener('input',()=>{
+ addrbox.classList.toggle('has',!!addrInput.value);
+ clearTimeout(tmr);const v=addrInput.value.trim();
+ if(v.length<4){sugg.hidden=true;return;}
+ tmr=setTimeout(()=>searchAddr(v),320);
+});
+addrInput.addEventListener('keydown',e=>{
+ if(e.key==='Escape')sugg.hidden=true;
+ if(e.key==='Enter'){e.preventDefault();clearTimeout(tmr);const v=addrInput.value.trim();if(v.length>3)searchAddr(v);}
+});
+document.getElementById('go').onclick=()=>{
+ const v=addrInput.value.trim();
+ if(v.length<4){addrInput.focus();msg('Bitte Straße und Hausnummer eingeben, z. B. „Breukerstraße 79, Gladbeck“.',1);return;}
+ clearTimeout(tmr);searchAddr(v);
+};
+clr.onclick=()=>{addrInput.value='';addrbox.classList.remove('has');sugg.hidden=true;addrInput.focus();};
+document.addEventListener('click',e=>{if(!sugg.contains(e.target)&&e.target!==addrInput)sugg.hidden=true;});
+
+renderList();
+</script>
+</body>
+</html>
