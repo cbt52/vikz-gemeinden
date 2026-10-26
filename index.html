@@ -64,8 +64,9 @@ h1{font-size:clamp(25px,4.4vw,38px);line-height:1.1;margin:10px 0 10px;font-weig
 #go{border:0;background:var(--green-2);color:#fff;padding:0 16px;align-self:stretch;
  font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:0 11px 11px 0}
 #go:hover{background:#0f4d33}
-.sugg{position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;color:var(--ink);
- border-radius:12px;box-shadow:0 18px 44px rgba(0,0,0,.26);overflow:hidden;z-index:60}
+.sugg{position:absolute;left:0;top:0;width:0;background:#fff;color:var(--ink);
+ border-radius:12px;box-shadow:0 18px 44px rgba(0,0,0,.26);overflow-y:auto;overflow-x:hidden;
+ max-height:min(52vh,340px);z-index:60}
 .sugg div{padding:11px 14px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--line)}
 .sugg div:last-child{border:0}
 .sugg div:hover,.sugg div.sel{background:#eff6f1}
@@ -171,12 +172,15 @@ footer p{margin:4px 0;max-width:78ch}
       placeholder="Straße und Hausnummer, z. B. Breukerstraße 79, Gladbeck" aria-label="Adresse mit Straße und Hausnummer">
     <button id="clr" type="button" aria-label="Eingabe löschen">×</button>
     <button id="go" type="button">Suchen</button>
-    <div id="sugg" class="sugg" hidden></div>
    </div>
    <p id="status" class="msg" role="status"></p>
   </div>
  </div>
 </header>
+<!-- Außerhalb von <header>: der Header hat overflow:hidden (dekorativer Glow) und hat die
+     Vorschlagsliste vorher an seiner Unterkante abgeschnitten — darunter begann die Karte,
+     das sah aus, als würde die Karte die Ergebnisse verdecken. -->
+<div id="sugg" class="sugg" hidden></div>
 
 <main class="wrap">
  <div class="layout">
@@ -325,10 +329,19 @@ geoBtn.onclick=()=>{
 const addrInput=document.getElementById('addr'), sugg=document.getElementById('sugg');
 const addrbox=document.getElementById('addrbox'), clr=document.getElementById('clr');
 let tmr=null, ctrl=null, shown=[];
+function placeSugg(){
+ const r=addrbox.getBoundingClientRect();
+ sugg.style.left=(r.left+window.scrollX)+'px';
+ sugg.style.width=r.width+'px';
+ sugg.style.top=(r.bottom+window.scrollY+8)+'px';
+}
+window.addEventListener('resize',()=>{if(!sugg.hidden)placeSugg();});
+window.addEventListener('orientationchange',()=>{if(!sugg.hidden)setTimeout(placeSugg,150);});
 function showSugg(items){
  shown=items;
  if(!items.length){sugg.hidden=true;sugg.innerHTML='';return;}
  sugg.innerHTML=items.map((it,i)=>'<div data-i="'+i+'"><strong>'+it.main+'</strong><small>'+it.sub+'</small></div>').join('');
+ placeSugg();
  sugg.hidden=false;
  sugg.querySelectorAll('div').forEach(d=>d.onclick=()=>{
   const it=shown[+d.dataset.i];sugg.hidden=true;addrInput.value=it.label;addrbox.classList.add('has');
@@ -360,6 +373,8 @@ function searchAddr(qs){
  msg('Suche Adresse …');
  photon(qs).catch(()=>[]).then(items=>items.length?items:nominatim(qs).catch(()=>[])).then(items=>{
    if(!items.length){msg('Adresse nicht gefunden – bitte Hausnummer und Ort ergänzen (z. B. „Hauptstr. 5, 45964 Gladbeck“).',1);return;}
+   const seen=new Set();
+   items=items.filter(it=>{const k=(it.main+'|'+(it.sub||'')).toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
    msg('');showSugg(items);
  });
 }
