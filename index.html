@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VIKZ-Gemeinden in deiner Nähe</title>
-<meta name="description" content="291 VIKZ-Gemeinden und Bildungsvereine – die nächsten nach Entfernung finden, mit Karte und Route.">
+<meta name="description" content="291 VIKZ-Gemeinden und Bildungsvereine – die nächsten nach Entfernung finden, mit Karte, Google-Maps-Standort und Teilen.">
 <meta name="theme-color" content="#0b3d2c">
 <link rel="preconnect" href="https://unpkg.com">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -142,6 +142,36 @@ footer p{margin:4px 0;max-width:78ch}
 .pin.near{background:var(--accent);width:17px;height:17px;box-shadow:0 0 0 1px rgba(160,120,20,.55)}
 .me{width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;
  box-shadow:0 0 0 2px rgba(26,115,232,.35)}
+
+/* ---------- Auswahl / Teilen ---------- */
+.chk{flex:0 0 26px;width:26px;height:26px;border-radius:8px;border:2px solid #b7c7bd;background:#fff;cursor:pointer;
+ padding:0;display:flex;align-items:center;justify-content:center;color:transparent;font-family:inherit;margin-top:1px}
+.chk svg{width:15px;height:15px}
+.chk.on{background:var(--green-2);border-color:var(--green-2);color:#fff}
+.chk:focus-visible,.cact button:focus-visible,.sbar button:focus-visible{outline:3px solid rgba(240,192,74,.9);outline-offset:2px}
+.item.on,.card.on{background:#f1f8f4}
+.card.on{border-color:rgba(20,96,63,.45)}
+.cact button,.shr{display:inline-flex;align-items:center;gap:6px;min-height:34px;font-size:12.8px;color:var(--green-2);
+ border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:#fbfcfb;white-space:nowrap;font-weight:600;
+ cursor:pointer;font-family:inherit}
+.cact button:hover,.shr:hover{border-color:#b9d2c5;background:#f1f8f4}
+.cact button svg,.shr svg{width:14px;height:14px}
+.shr{min-height:32px;padding:4px 10px;flex:0 0 auto}
+.pin.sel{background:#d93025;width:17px;height:17px;box-shadow:0 0 0 1px rgba(120,20,10,.6)}
+.sbar{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translate(-50%,0);z-index:2000;
+ display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 20px);
+ background:var(--green);color:#fff;border-radius:18px;padding:10px 12px;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+.sbar[hidden]{display:none}
+.sbar .cnt{font-weight:700;font-size:14px;padding:0 6px}
+.sbar button{border:0;border-radius:12px;padding:10px 14px;min-height:42px;font-size:14px;font-weight:700;cursor:pointer;
+ font-family:inherit;background:rgba(255,255,255,.14);color:#fff}
+.sbar button.main{background:var(--accent);color:#20180a}
+.sbar button:hover{filter:brightness(1.1)}
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:2100;
+ background:#16211c;color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);
+ max-width:calc(100vw - 30px);text-align:center}
+.toast[hidden]{display:none}
+body.hasbar footer{padding-bottom:110px}
 </style>
 </head>
 <body>
@@ -201,12 +231,21 @@ footer p{margin:4px 0;max-width:78ch}
    <div class="sechead">
     <h2 id="listTitle">Alle Gemeinden</h2>
     <span class="count" id="listCount"></span>
+    <button id="selAll" class="ghost" type="button">Alle Treffer auswählen</button>
    </div>
    <div class="searchrow"><input id="q" type="search" placeholder="Suchen: Name, Ort, Straße oder PLZ"></div>
    <div id="list" class="list"></div>
   </section>
  </div>
 </main>
+
+<div id="sbar" class="sbar" hidden role="region" aria-label="Auswahl">
+ <span class="cnt" id="sCnt"></span>
+ <button id="sShare" class="main" type="button">Teilen</button>
+ <button id="sMap" type="button">Auf Karte</button>
+ <button id="sClr" type="button">Leeren</button>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
 
 <footer><div class="wrap">
  <p><strong>Quelle:</strong> Gemeindelisten der VIKZ-Landesverbände (Stand 24.10.2026), geokodiert über OpenStreetMap/Nominatim. Kartenkacheln © OpenStreetMap-Mitwirkende (ODbL), Adresssuche über Photon.</p>
@@ -226,29 +265,37 @@ function dist(d){
  if(d<10) return d.toFixed(1).replace('.',',')+' km';
  return Math.round(d).toString()+' km';}
 function addr(g){return [g.s,(g.p+' '+g.c).trim()].filter(Boolean).join(', ');}
-function route(g){return 'https://www.google.com/maps/dir/?api=1&destination='+g.a+','+g.o;}
-function osmlink(g){return 'https://www.openstreetmap.org/?mlat='+g.a+'&mlon='+g.o+'#map=17/'+g.a+'/'+g.o;}
+/* Google-Maps-Standort (Pin auf der Karte), keine Routenplanung */
+function place(g){return 'https://www.google.com/maps/search/?api=1&query='+g.a+','+g.o;}
+const SHARE_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>';
+const CHK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+G.forEach((g,i)=>g._i=i);
+const sel=new Set();
+function chk(g){const on=sel.has(g._i);
+ return '<button type="button" class="chk'+(on?' on':'')+'" data-chk="'+g._i+'" role="checkbox" aria-checked="'+on+'" aria-label="'+g.n.replace(/"/g,'&quot;')+' auswählen">'+CHK_ICON+'</button>';}
 
 const map=L.map('map',{scrollWheelZoom:false}).setView([51.3,10.2],6);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,
  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'}).addTo(map);
 const pinNear=L.divIcon({className:'',html:'<div class="pin near"></div>',iconSize:[17,17],iconAnchor:[8,8]});
 const pinStd=L.divIcon({className:'',html:'<div class="pin"></div>',iconSize:[13,13],iconAnchor:[7,7]});
+const pinSel=L.divIcon({className:'',html:'<div class="pin sel"></div>',iconSize:[17,17],iconAnchor:[8,8]});
 const pinMe=L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]});
 
 G.forEach(g=>{
  g._mk=L.marker([g.a,g.o],{icon:pinStd,title:g.n}).addTo(map)
-  .bindPopup('<strong>'+g.n+'</strong><br>'+addr(g)+'<br><a href="'+route(g)+'" target="_blank" rel="noopener">Route</a> · <a href="'+osmlink(g)+'" target="_blank" rel="noopener">OpenStreetMap</a>');
+  .bindPopup('<strong>'+g.n+'</strong><br>'+addr(g)+'<br><a href="'+place(g)+'" target="_blank" rel="noopener">In Google Maps öffnen</a>');
 });
 let ref=null, refMk=null, refCircle=null;
 
+let shownList=G;
 const listEl=document.getElementById('list'), q=document.getElementById('q');
 const nearSec=document.getElementById('nearSec'), nearList=document.getElementById('nearList');
 const statusEl=document.getElementById('status'), mapNote=document.getElementById('mapNote');
 
 function actions(g){
- let a='<a href="'+route(g)+'" target="_blank" rel="noopener">Route</a>'+
-       '<a href="'+osmlink(g)+'" target="_blank" rel="noopener">Karte</a>';
+ let a='<a href="'+place(g)+'" target="_blank" rel="noopener">Google Maps</a>'+
+       '<button type="button" data-share="'+g._i+'">'+SHARE_ICON+'Teilen</button>';
  if(g.t)a+='<a href="tel:'+g.t.replace(/[^+0-9]/g,'')+'">Anrufen</a>';
  if(g.e)a+='<a href="mailto:'+g.e+'">E-Mail</a>';
  if(g.u)a+='<a href="'+g.u+'" target="_blank" rel="noopener">Website</a>';
@@ -256,12 +303,12 @@ function actions(g){
 }
 function renderNear(){
  if(!ref){nearSec.hidden=true;return;}
- const sel=G.slice().sort((a,b)=>a._d-b._d).slice(0,5);
+ const near5=G.slice().sort((a,b)=>a._d-b._d).slice(0,5);
  nearSec.hidden=false;
- document.getElementById('nearTitle').textContent='Die '+sel.length+' nächsten ab '+ref.label;
- nearList.innerHTML=sel.map((g,i)=>
-  '<article class="card'+(i===0?' top':'')+'">'+
-   '<div class="rank">'+(i+1)+'</div>'+
+ document.getElementById('nearTitle').textContent='Die '+near5.length+' nächsten ab '+ref.label;
+ nearList.innerHTML=near5.map((g,i)=>
+  '<article class="card'+(i===0?' top':'')+(sel.has(g._i)?' on':'')+'">'+
+   chk(g)+'<div class="rank">'+(i+1)+'</div>'+
    '<div class="cbody"><p class="cname">'+g.n+'</p><p class="caddr">'+addr(g)+'</p>'+
     '<div class="cact">'+actions(g)+'</div></div>'+
    '<div class="dist"><b>'+dist(g._d)+'</b><span>Luftlinie</span></div>'+
@@ -269,41 +316,102 @@ function renderNear(){
 }
 function renderList(){
  const f=(q.value||'').toLowerCase().trim();
- let sel=G.filter(g=>!f||(g.n+' '+g.c+' '+g.p+' '+g.s).toLowerCase().includes(f));
- sel=sel.slice().sort(ref&&!f ? ((a,b)=>a._d-b._d)
+ let rows=G.filter(g=>!f||(g.n+' '+g.c+' '+g.p+' '+g.s).toLowerCase().includes(f));
+ shownList=rows;
+ rows=rows.slice().sort(ref&&!f ? ((a,b)=>a._d-b._d)
    : ((a,b)=>a.c.localeCompare(b.c,'de')||a.n.localeCompare(b.n,'de')));
- document.getElementById('listCount').textContent=sel.length+' von '+G.length;
+ document.getElementById('listCount').textContent=rows.length+' von '+G.length;
  document.getElementById('listTitle').textContent=(ref&&!f)?'Alle nach Entfernung':'Alle Gemeinden';
- listEl.innerHTML=sel.length?sel.map(g=>
-  '<div class="item" data-i="'+G.indexOf(g)+'">'+
+ listEl.innerHTML=rows.length?rows.map(g=>
+  '<div class="item'+(sel.has(g._i)?' on':'')+'" data-i="'+g._i+'">'+chk(g)+
    '<div class="who"><span class="nm">'+g.n+'</span><span class="ad">'+addr(g)+'</span></div>'+
    (ref?'<span class="dm">'+dist(g._d)+'</span>':'')+
+   '<button type="button" class="shr" data-share="'+g._i+'" aria-label="'+g.n.replace(/"/g,'&quot;')+' teilen">'+SHARE_ICON+'</button>'+
   '</div>').join(''):'<div class="empty">Nichts gefunden. Andere Schreibweise oder nur die PLZ versuchen.</div>';
 }
 listEl.addEventListener('click',e=>{
+ if(handleAct(e))return;
  const it=e.target.closest('.item');if(!it)return;
  const g=G[+it.dataset.i];if(!g)return;
  map.setView([g.a,g.o],15,{animate:true});g._mk.openPopup();
 });
 
+/* ---------- Auswahl & Teilen ---------- */
+const sbar=document.getElementById('sbar'), toastEl=document.getElementById('toast');
+let toastT=null;
+function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>toastEl.hidden=true,2600);}
+function pinFor(g){return sel.has(g._i)?pinSel:(ref&&g._near?pinNear:pinStd);}
+function syncSel(){
+ G.forEach(g=>g._mk.setIcon(pinFor(g)));
+ document.querySelectorAll('[data-chk]').forEach(b=>{
+  const on=sel.has(+b.dataset.chk);b.classList.toggle('on',on);b.setAttribute('aria-checked',on);
+  const row=b.closest('.item,.card');if(row)row.classList.toggle('on',on);});
+ sbar.hidden=!sel.size;document.body.classList.toggle('hasbar',!!sel.size);
+ document.getElementById('sCnt').textContent=sel.size+(sel.size===1?' ausgewählt':' ausgewählt');
+ const all=shownList.length&&shownList.every(g=>sel.has(g._i));
+ document.getElementById('selAll').textContent=all?'Treffer abwählen':'Alle Treffer auswählen';
+}
+function toggle(i){sel.has(i)?sel.delete(i):sel.add(i);syncSel();}
+function shareText(list){
+ const parts=list.map((g,k)=>{
+  const l=[(list.length>1?(k+1)+'. ':'')+g.n,addr(g)];
+  if(ref&&g._d!=null)l.push(dist(g._d)+' Luftlinie ab '+ref.label);
+  if(g.t)l.push('Tel. '+g.t);
+  l.push(place(g));
+  return l.join('\n');});
+ return (list.length>1?'VIKZ-Gemeinden ('+list.length+'):\n\n':'')+parts.join('\n\n');
+}
+function copyText(t){
+ if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(t);
+ return new Promise((res,rej)=>{const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0';
+  document.body.appendChild(ta);ta.select();try{document.execCommand('copy')?res():rej();}catch(x){rej(x);}ta.remove();});
+}
+function doShare(list){
+ if(!list.length)return;
+ const text=shareText(list), title=list.length>1?'VIKZ-Gemeinden':list[0].n;
+ if(navigator.share){
+  navigator.share({title,text}).catch(err=>{if(err&&err.name==='AbortError')return;
+   copyText(text).then(()=>toast('In die Zwischenablage kopiert'),()=>toast('Teilen nicht möglich'));});
+ }else copyText(text).then(()=>toast('In die Zwischenablage kopiert'),()=>toast('Teilen nicht möglich'));
+}
+function handleAct(e){
+ const c=e.target.closest('[data-chk]');
+ if(c){e.stopPropagation();toggle(+c.dataset.chk);return true;}
+ const s=e.target.closest('[data-share]');
+ if(s){e.stopPropagation();doShare([G[+s.dataset.share]]);return true;}
+ return false;
+}
+nearList.addEventListener('click',handleAct);
+document.getElementById('sShare').onclick=()=>doShare(G.filter(g=>sel.has(g._i)).sort((a,b)=>(ref?a._d-b._d:0)));
+document.getElementById('sClr').onclick=()=>{sel.clear();syncSel();};
+document.getElementById('sMap').onclick=()=>{
+ const l=G.filter(g=>sel.has(g._i));if(!l.length)return;
+ map.fitBounds(L.latLngBounds(l.map(g=>[g.a,g.o])).pad(.25),{maxZoom:15});
+ document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
+};
+document.getElementById('selAll').onclick=()=>{
+ const all=shownList.length&&shownList.every(g=>sel.has(g._i));
+ shownList.forEach(g=>all?sel.delete(g._i):sel.add(g._i));syncSel();
+};
+
 function setRef(lat,lon,label,zoom){
  ref={lat,lon,label};
  G.forEach(g=>g._d=km([lat,lon],[g.a,g.o]));
  const near=G.slice().sort((a,b)=>a._d-b._d).slice(0,25), nearSet=new Set(near);
- G.forEach(g=>g._mk.setIcon(nearSet.has(g)?pinNear:pinStd));
+ G.forEach(g=>{g._near=nearSet.has(g);g._mk.setIcon(pinFor(g));});
  if(refMk)refMk.remove(); if(refCircle)refCircle.remove();
  refMk=L.marker([lat,lon],{icon:pinMe}).addTo(map).bindPopup('Dein Bezugspunkt');
  refCircle=L.circle([lat,lon],{radius:10000,color:'#1a73e8',weight:1,opacity:.45,fillColor:'#1a73e8',fillOpacity:.05}).addTo(map);
  mapNote.textContent='10-km-Kreis · nächste 25 hervorgehoben';
- renderNear(); renderList();
+ renderNear(); renderList(); syncSel();
  map.fitBounds(L.latLngBounds([[lat,lon]].concat(near.slice(0,8).map(g=>[g.a,g.o]))).pad(.22));
  msg(''); document.getElementById('geoTxt').textContent='Meinen Standort verwenden';
 }
 function clearRef(){
  ref=null;
  if(refMk){refMk.remove();refMk=null;} if(refCircle){refCircle.remove();refCircle=null;}
- G.forEach(g=>{delete g._d;g._mk.setIcon(pinStd);});
- nearSec.hidden=true;renderList();map.setView([51.3,10.2],6);
+ G.forEach(g=>{delete g._d;g._near=false;g._mk.setIcon(pinFor(g));});
+ nearSec.hidden=true;renderList();syncSel();map.setView([51.3,10.2],6);
  mapNote.textContent='ganze Bundesrepublik';msg('');
  addrInput.value='';addrbox.classList.remove('has');
 }
@@ -396,7 +504,8 @@ document.getElementById('go').onclick=()=>{
 clr.onclick=()=>{addrInput.value='';addrbox.classList.remove('has');sugg.hidden=true;addrInput.focus();};
 document.addEventListener('click',e=>{if(!sugg.contains(e.target)&&e.target!==addrInput)sugg.hidden=true;});
 
-renderList();
+q.addEventListener('input',()=>{renderList();syncSel();});
+renderList();syncSel();
 </script>
 </body>
 </html>
